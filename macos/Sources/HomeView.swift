@@ -45,12 +45,12 @@ struct RosterView: View {
         VStack(spacing: 0) {
             HStack {
                 CircleIconButton(systemName: "square.grid.2x2", badge: monitor.pendingApprovals.count,
-                                 help: "Konsolu aç (görevler, onaylar, ajan ofisi)") {
+                                 help: L("Konsolu aç (görevler, onaylar, ajan ofisi)", "Open the console (tasks, approvals, agent office)")) {
                     monitor.openConsole(monitor.pendingApprovals.isEmpty ? .overview : .approvals)
                 }
                 Spacer()
                 CircleIconButton(systemName: monitor.showQuickTask ? "xmark" : "plus",
-                                 help: "Hızlı arka plan görevi ekle") {
+                                 help: L("Hızlı arka plan görevi ekle", "Quick background task")) {
                     withAnimation(.easeInOut(duration: 0.15)) { monitor.showQuickTask.toggle() }
                     quickFocused = monitor.showQuickTask
                 }
@@ -67,14 +67,14 @@ struct RosterView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("AJANLAR")
+                        Text(L("AJANLAR", "AGENTS"))
                             .font(.system(size: 10.5, weight: .bold))
                             .tracking(0.8)
                             .foregroundStyle(DS.text3)
                         Spacer()
                         if !monitor.officeAgents.isEmpty {
                             let problems = monitor.agents.filter { monitor.liveState(for: $0).map { $0 != "ok" } ?? false }.count
-                            Text(problems == 0 ? "hepsi yolunda" : "\(problems) ajanda sorun var")
+                            Text(problems == 0 ? L("hepsi yolunda", "all good") : L("\(problems) ajanda sorun var", "\(problems) \(problems == 1 ? "needs" : "need") attention"))
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundStyle(problems == 0 ? DS.text3 : DS.warn)
                         }
@@ -83,7 +83,7 @@ struct RosterView: View {
                     .padding(.bottom, 4)
 
                     if monitor.agents.isEmpty {
-                        Text("Sunucuda tanımlı ajan yok. ~/.duffy/app.json ile karakter ekleyebilirsin.")
+                        Text(L("Sunucuda tanımlı ajan yok. ~/.duffy/app.json ile karakter ekleyebilirsin.", "No agents on the server yet. Add characters in ~/.duffy/app.json."))
                             .font(.system(size: 12))
                             .foregroundStyle(DS.text2)
                             .padding(10)
@@ -113,7 +113,7 @@ struct RosterView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("\(monitor.chief.name) ile konuş")
+            .help(L("\(monitor.chief.name) ile konuş", "Talk to \(monitor.chief.name)"))
 
             statusStrip
         }
@@ -125,11 +125,11 @@ struct RosterView: View {
         let parts: [String] = monitor.online
             ? [
                 "\(monitor.hostLabel) · \(monitor.linkLabel)",
-                monitor.activeTasks.isEmpty ? "kuyruk boş" : "\(monitor.activeTasks.count) görev sürüyor",
-                monitor.officeProblems.isEmpty ? nil : "\(monitor.officeProblems.count) uyarı",
-                monitor.lastSync.map { "güncel \(Fmt.clock($0))" },
+                monitor.activeTasks.isEmpty ? L("kuyruk boş", "queue empty") : L("\(monitor.activeTasks.count) görev sürüyor", "\(monitor.activeTasks.count) running"),
+                monitor.officeProblems.isEmpty ? nil : L("\(monitor.officeProblems.count) uyarı", plural(monitor.officeProblems.count, "warning")),
+                monitor.lastSync.map { L("güncel \(Fmt.clock($0))", "updated \(Fmt.clock($0))") },
             ].compactMap { $0 }
-            : ["\(monitor.hostLabel) sunucusuna ulaşılamıyor"]
+            : [L("\(monitor.hostLabel) sunucusuna ulaşılamıyor", "Can't reach \(monitor.hostLabel)")]
         return Button {
             monitor.openConsole(monitor.officeProblems.isEmpty ? .overview : .office)
         } label: {
@@ -146,7 +146,7 @@ struct RosterView: View {
             .background(DS.pill, in: Capsule())
         }
         .buttonStyle(.plain)
-        .help("Genel bakışı aç")
+        .help(L("Genel bakışı aç", "Open the overview"))
     }
 
     private var quickTaskBar: some View {
@@ -162,9 +162,9 @@ struct RosterView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help("Görevi hangi ajan yapacak")
+                .help(L("Görevi hangi ajan yapacak", "Which agent does the task"))
 
-                TextField("Ne yapılsın? Enter ile kuyruğa ekle", text: $monitor.newTaskTitle)
+                TextField(L("Ne yapılsın? Enter ile kuyruğa ekle", "What should be done? Enter to queue"), text: $monitor.newTaskTitle)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .focused($quickFocused)
@@ -176,7 +176,7 @@ struct RosterView: View {
             .background(DS.pill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay { RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(DS.accent.opacity(0.5)) }
 
-            Text("Görev arka planda çalışır; riskli adımlar senin onayını bekler.")
+            Text(L("Görev arka planda çalışır; riskli adımlar senin onayını bekler.", "Runs in the background; risky steps wait for your approval."))
                 .font(.system(size: 10.5))
                 .foregroundStyle(DS.text3)
                 .padding(.leading, 4)
@@ -205,7 +205,7 @@ struct RosterView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(DS.warn)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(n) işlem onayını bekliyor")
+                    Text(L("\(n) işlem onayını bekliyor", "\(n) waiting for your approval"))
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(DS.text1)
                     Text(monitor.pendingApprovals.first?.approvalAction ?? monitor.pendingApprovals.first?.title ?? "")
@@ -214,7 +214,7 @@ struct RosterView: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                Text("İncele")
+                Text(L("İncele", "Review"))
                     .font(.system(size: 11.5, weight: .bold))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 10)
@@ -253,7 +253,7 @@ struct AgentRow: View {
                                 .frame(width: 11, height: 11)
                                 .overlay { Circle().stroke(DS.bg, lineWidth: 2.5) }
                                 .offset(x: 1, y: 1)
-                                .help(state == "ok" ? "Bağlı servisler çalışıyor" : "Bağlı serviste sorun var")
+                                .help(state == "ok" ? L("Bağlı servisler çalışıyor", "Linked services are up") : L("Bağlı serviste sorun var", "A linked service has a problem"))
                         }
                     }
 
@@ -272,7 +272,7 @@ struct AgentRow: View {
                             Image(systemName: "bolt.fill")
                                 .font(.system(size: 9))
                                 .foregroundStyle(DS.info)
-                                .help("Görev çalışıyor")
+                                .help(L("Görev çalışıyor", "Task running"))
                         }
                         Text(preview.time)
                             .font(.system(size: 11, design: .rounded))

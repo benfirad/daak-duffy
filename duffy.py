@@ -37,7 +37,7 @@ import urllib.request
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-__version__ = "0.2.0"
+__version__ = "0.3.1"
 
 # --------------------------------------------------------------------------
 # Configuration

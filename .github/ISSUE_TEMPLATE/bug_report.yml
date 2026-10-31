@@ -1,0 +1,24 @@
+name: Bug report
+description: Something does not work as described
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you ran, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or log lines
+      description: Remove anything private before pasting.
+      render: text
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "macOS 15 / Ubuntu 24.04, Python 3.12, agent CLI and version"
+    validations:
+      required: true

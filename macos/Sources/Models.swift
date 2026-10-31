@@ -78,13 +78,15 @@ struct DuffyAPIResponse: Decodable {
 struct FlexText: Decodable {
     let text: String
 
+    init(text: String) { self.text = text }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
         if c.decodeNil() { text = "—" }
         else if let s = try? c.decode(String.self) { text = s }
         else if let i = try? c.decode(Int.self) { text = String(i) }
         else if let d = try? c.decode(Double.self) { text = String(d) }
-        else if let b = try? c.decode(Bool.self) { text = b ? "evet" : "hayır" }
+        else if let b = try? c.decode(Bool.self) { text = b ? L("evet", "yes") : L("hayır", "no") }
         else { text = "—" }
     }
 }
@@ -95,6 +97,14 @@ struct OfficeAgent: Decodable, Identifiable {
     let role: String
     let state: String
     let facts: [String: FlexText]
+
+    init(id: String, name: String, role: String, state: String, facts: [String: String]) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.state = state
+        self.facts = facts.mapValues { FlexText(text: $0) }
+    }
 
     var isOK: Bool { state == "ok" }
     var severity: Int { state == "ok" ? 2 : (state == "warn" ? 1 : 0) }
@@ -121,9 +131,46 @@ struct OfficeService: Decodable, Identifiable {
     }
 }
 
+// İki ofis sürümü var: kart listesi döndüren ("agents": [...]) ve repodaki office.py
+// ("agents": {id: ad}, "health": [{name, ok, ms}], "duffy_online"). İkisinden de kart üret.
 struct OfficeSnapshot: Decodable {
     let agents: [OfficeAgent]
     let services: [OfficeService]
+
+    private struct HealthCheck: Decodable {
+        let name: String
+        let ok: Bool
+        let ms: Int?
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case agents, office, services, health
+        case duffyOnline = "duffy_online"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        services = (try? c.decode([OfficeService].self, forKey: .services)) ?? []
+        if let cards = try? c.decode([OfficeAgent].self, forKey: .agents) {
+            agents = cards
+            return
+        }
+        if let cards = try? c.decode([OfficeAgent].self, forKey: .office) {
+            agents = cards
+            return
+        }
+        var cards: [OfficeAgent] = []
+        if let online = try? c.decode(Bool.self, forKey: .duffyOnline) {
+            cards.append(OfficeAgent(id: "duffy", name: "Duffy", role: L("Görev kuyruğu", "Task queue"),
+                                     state: online ? "ok" : "down", facts: [L("durum", "status"): online ? L("çevrimiçi", "online") : L("ulaşılamıyor", "unreachable")]))
+        }
+        for h in (try? c.decode([HealthCheck].self, forKey: .health)) ?? [] {
+            cards.append(OfficeAgent(id: "health:\(h.name)", name: h.name, role: L("HTTP sağlık kontrolü", "HTTP health check"),
+                                     state: h.ok ? "ok" : "down",
+                                     facts: [L("durum", "status"): h.ok ? L("yanıt veriyor", "responding") : L("yanıt yok", "not responding"), L("süre", "response"): h.ms.map { "\($0) ms" } ?? "—"]))
+        }
+        agents = cards
+    }
 }
 
 enum Fmt {
@@ -136,7 +183,7 @@ enum Fmt {
 
     private static func formatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "tr_TR")
+        f.locale = Locale(identifier: L("tr_TR", "en_US"))
         f.dateFormat = format
         return f
     }
@@ -154,15 +201,15 @@ enum Fmt {
         guard let d else { return "—" }
         let cal = Calendar.current
         if cal.isDateInToday(d) { return time(d) }
-        if cal.isDateInYesterday(d) { return "dün" }
+        if cal.isDateInYesterday(d) { return L("dün", "yesterday") }
         return formatter("d MMM").string(from: d)
     }
 
     static func day(_ d: Date) -> String {
         let cal = Calendar.current
-        if cal.isDateInToday(d) { return "Bugün" }
-        if cal.isDateInYesterday(d) { return "Dün" }
-        return formatter("d MMMM EEEE").string(from: d)
+        if cal.isDateInToday(d) { return L("Bugün", "Today") }
+        if cal.isDateInYesterday(d) { return L("Dün", "Yesterday") }
+        return formatter(L("d MMMM EEEE", "EEEE, d MMMM")).string(from: d)
     }
 
     // "2026-10-31T10:48:27.04+01:00" gibi ham zaman damgalarını "bugün 10:48" yap
@@ -173,18 +220,18 @@ enum Fmt {
         let d = iso.date(from: s) ?? ISO8601DateFormatter().date(from: s) ?? parse(s)
         guard let d else { return s }
         let cal = Calendar.current
-        if cal.isDateInToday(d) { return "bugün \(time(d))" }
-        if cal.isDateInYesterday(d) { return "dün \(time(d))" }
-        if cal.isDateInTomorrow(d) { return "yarın \(time(d))" }
+        if cal.isDateInToday(d) { return L("bugün \(time(d))", "today \(time(d))") }
+        if cal.isDateInYesterday(d) { return L("dün \(time(d))", "yesterday \(time(d))") }
+        if cal.isDateInTomorrow(d) { return L("yarın \(time(d))", "tomorrow \(time(d))") }
         return formatter("d MMM HH:mm").string(from: d)
     }
 
     static func ago(_ d: Date?) -> String {
-        guard let d else { return "hiç" }
+        guard let d else { return L("hiç", "never") }
         let s = Int(Date().timeIntervalSince(d))
-        if s < 60 { return "az önce" }
-        if s < 3600 { return "\(s / 60) dk önce" }
-        if s < 86_400 { return "\(s / 3600) sa önce" }
+        if s < 60 { return L("az önce", "just now") }
+        if s < 3600 { return L("\(s / 60) dk önce", "\(s / 60) min ago") }
+        if s < 86_400 { return L("\(s / 3600) sa önce", "\(s / 3600) h ago") }
         return relative(d)
     }
 }

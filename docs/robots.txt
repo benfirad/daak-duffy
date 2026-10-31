@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://benfirad.github.io/daak-duffy/sitemap.xml

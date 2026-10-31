@@ -39,13 +39,13 @@ enum TaskState {
 
     static func label(_ s: String) -> String {
         switch s {
-        case "pending": return "Sırada"
-        case "running": return "Çalışıyor"
-        case "awaiting_approval": return "Onay bekliyor"
-        case "approved": return "Onaylandı"
-        case "done": return "Tamamlandı"
-        case "failed": return "Hata"
-        case "rejected": return "Reddedildi"
+        case "pending": return L("Sırada", "Queued")
+        case "running": return L("Çalışıyor", "Running")
+        case "awaiting_approval": return L("Onay bekliyor", "Needs approval")
+        case "approved": return L("Onaylandı", "Approved")
+        case "done": return L("Tamamlandı", "Done")
+        case "failed": return L("Hata", "Failed")
+        case "rejected": return L("Reddedildi", "Rejected")
         default: return s
         }
     }

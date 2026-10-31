@@ -6,12 +6,12 @@ enum ConsoleSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .overview: return "Genel Bakış"
-        case .tasks: return "Görevler"
-        case .approvals: return "Onaylar"
-        case .office: return "Ajan Ofisi"
-        case .services: return "Servisler"
-        case .commands: return "Komutlar"
+        case .overview: return L("Genel Bakış", "Overview")
+        case .tasks: return L("Görevler", "Tasks")
+        case .approvals: return L("Onaylar", "Approvals")
+        case .office: return L("Ajan Ofisi", "Agent Office")
+        case .services: return L("Servisler", "Services")
+        case .commands: return L("Komutlar", "Commands")
         }
     }
 
@@ -74,8 +74,8 @@ final class DuffyMonitor: ObservableObject {
         hosts = h.isEmpty ? ["127.0.0.1"] : h
         chief = AgentCharacter(
             config.chief ?? PersonaConfig(
-                id: "duffy", name: "Duffy", role: "Baş otonom işçi",
-                greeting: "7/24 nöbetteyim. Bana doğrudan yazabilir ya da arka plan görevi verebilirsin.",
+                id: "duffy", name: "Duffy", role: L("Baş otonom işçi", "Background worker"),
+                greeting: L("7/24 nöbetteyim. Bana doğrudan yazabilir ya da arka plan görevi verebilirsin.", "I'm on duty around the clock. Message me directly or hand me a background task."),
                 office: ["duffy"]
             ),
             index: 5
@@ -146,10 +146,10 @@ final class DuffyMonitor: ObservableObject {
         let linked = officeLinks(for: agent).sorted { $0.severity < $1.severity }
         if linked.isEmpty { return nil }
         return linked.map { a in
-            let detail = ["hata", "hue", "durum", "son", "son çalışma"]
+            let detail = ["hata", "hue", L("durum", "status"), "son", "son çalışma"]
                 .compactMap { a.facts[$0]?.text }
                 .first { !$0.isEmpty && $0 != "—" && $0 != "-" }
-            return "\(a.name): \(detail ?? (a.isOK ? "çalışıyor" : a.state))"
+            return "\(a.name): \(detail ?? (a.isOK ? L("çalışıyor", "running") : a.state))"
         }.joined(separator: " · ")
     }
 
@@ -167,12 +167,12 @@ final class DuffyMonitor: ObservableObject {
         let newest = candidates.max { $0.date < $1.date }
         // Son konuşma bir günden eskiyse canlı servis durumu daha anlamlı
         if let live = liveSummary(for: agent), newest.map({ Date().timeIntervalSince($0.date) > 86_400 }) ?? true {
-            return Preview(text: live, time: officeSync.map(Fmt.time) ?? "canlı", fromLive: true)
+            return Preview(text: live, time: officeSync.map(Fmt.time) ?? L("canlı", "live"), fromLive: true)
         }
         if let newest {
             return Preview(text: MarkdownText.plain(newest.text), time: Fmt.relative(newest.date), fromLive: false)
         }
-        return Preview(text: "Henüz konuşma yok, yazarak başlayabilirsin", time: "", fromLive: false)
+        return Preview(text: L("Henüz konuşma yok, yazarak başlayabilirsin", "No messages yet. Say hi to get started"), time: "", fromLive: false)
     }
 
     var filteredTasks: [DuffyTask] {
@@ -272,7 +272,7 @@ final class DuffyMonitor: ObservableObject {
         } else {
             waitingFor = nil
             if text == nil { chatInput = msg }
-            showToast("Mesaj gönderilemedi")
+            showToast(L("Mesaj gönderilemedi", "Message could not be sent"))
         }
     }
 
@@ -280,21 +280,21 @@ final class DuffyMonitor: ObservableObject {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         let ok = await post("add", [URLQueryItem(name: "title", value: trimmed), URLQueryItem(name: "category", value: category)])
-        showToast(ok ? "Görev kuyruğa eklendi" : "Görev eklenemedi")
+        showToast(ok ? L("Görev kuyruğa eklendi", "Task queued") : L("Görev eklenemedi", "Could not queue the task"))
         if ok { await refresh() }
         return ok
     }
 
     func taskAction(_ endpoint: String, id: Int, label: String) async {
         let ok = await post(endpoint, [URLQueryItem(name: "id", value: String(id))])
-        showToast(ok ? label : "İşlem başarısız")
+        showToast(ok ? label : L("İşlem başarısız", "Action failed"))
         if ok { await refresh() }
     }
 
     func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        showToast("Panoya kopyalandı")
+        showToast(L("Panoya kopyalandı", "Copied to clipboard"))
     }
 
     func showToast(_ text: String) {

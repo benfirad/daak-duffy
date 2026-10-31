@@ -1,4 +1,5 @@
 {
+  "language": "en",
   "hosts": ["127.0.0.1", "100.64.0.10"],
   "duffyPort": 8899,
   "officePort": 8900,
@@ -28,7 +29,7 @@
       "name": "Home Hank",
       "role": "Lights, TV & servers",
       "color": "#1FCC61",
-      "office": ["health", "name:backup"]
+      "office": ["health:Home Assistant", "name:backup"]
     }
   ],
   "commands": [

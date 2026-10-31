@@ -22,7 +22,21 @@ struct CommandConfig: Codable, Identifiable {
     var id: String { title }
 }
 
+// Arayüz dili: ayar dosyasındaki "language" ("tr" / "en"), yoksa sistem dili; Türkçe değilse İngilizce
+enum Lang {
+    static let english: Bool = {
+        let code = AppConfig.load().language ?? Locale.preferredLanguages.first ?? "en"
+        return !code.lowercased().hasPrefix("tr")
+    }()
+}
+
+func L(_ tr: String, _ en: String) -> String { Lang.english ? en : tr }
+
+// Türkçede sayıdan sonra tekil kalır; İngilizcede 1 dışında çoğul eki gerekir
+func plural(_ n: Int, _ word: String) -> String { n == 1 ? "1 \(word)" : "\(n) \(word)s" }
+
 struct AppConfig: Codable {
+    var language: String?
     var hosts: [String]?
     var duffyPort: Int?
     var officePort: Int?
@@ -48,17 +62,17 @@ struct AppConfig: Codable {
     }
 
     static let defaultCommands: [CommandConfig] = [
-        CommandConfig(title: "Yeni arka plan görevi ekle",
-                      command: "duffy add \"Gelen kutusunu özetle\" -c general",
-                      desc: "Görev sıraya girer, Duffy sen yokken çalışır ve sonucu bildirir."),
-        CommandConfig(title: "Görevleri listele", command: "duffy list",
-                      desc: "Bekleyen, çalışan ve biten görevleri terminalde gösterir."),
-        CommandConfig(title: "Görev raporunu gör", command: "duffy show 1",
-                      desc: "1 numaralı görevin ürettiği raporu ve onay komutunu basar."),
-        CommandConfig(title: "Onayla ya da reddet", command: "duffy approve 1   |   duffy reject 1",
-                      desc: "Onay bekleyen riskli adımı çalıştırır ya da iptal eder."),
-        CommandConfig(title: "Arka plan servisini başlat", command: "duffy daemon",
-                      desc: "Kuyruğu işleyen ve bu uygulamaya API sunan servisi açar."),
+        CommandConfig(title: L("Yeni arka plan görevi ekle", "Queue a background task"),
+                      command: L("duffy add \"Gelen kutusunu özetle\" -c general", "duffy add \"Summarise my inbox\" -c general"),
+                      desc: L("Görev sıraya girer, Duffy sen yokken çalışır ve sonucu bildirir.", "The task is queued; Duffy works on it while you're away and reports back.")),
+        CommandConfig(title: L("Görevleri listele", "List tasks"), command: "duffy list",
+                      desc: L("Bekleyen, çalışan ve biten görevleri terminalde gösterir.", "Shows queued, running and finished tasks in the terminal.")),
+        CommandConfig(title: L("Görev raporunu gör", "Show a task's report"), command: "duffy show 1",
+                      desc: L("1 numaralı görevin ürettiği raporu ve onay komutunu basar.", "Prints task 1's report and any command waiting for approval.")),
+        CommandConfig(title: L("Onayla ya da reddet", "Approve or reject"), command: "duffy approve 1   |   duffy reject 1",
+                      desc: L("Onay bekleyen riskli adımı çalıştırır ya da iptal eder.", "Runs or cancels the risky step that is waiting for you.")),
+        CommandConfig(title: L("Arka plan servisini başlat", "Start the background service"), command: "duffy daemon",
+                      desc: L("Kuyruğu işleyen ve bu uygulamaya API sunan servisi açar.", "Starts the worker that processes the queue and serves this app.")),
     ]
 }
 
@@ -81,15 +95,15 @@ struct AgentCharacter: Identifiable, Equatable {
         Color(red: 0.12, green: 0.80, blue: 0.38), Color(red: 0.58, green: 0.40, blue: 0.98),
     ]
 
-    static let defaultSuggestions = ["Kısa bir durum özeti ver", "Bugün neye odaklanmalıyım?", "Son görevin sonucunu anlat"]
+    static let defaultSuggestions = [L("Kısa bir durum özeti ver", "Give me a short status update"), L("Bugün neye odaklanmalıyım?", "What should I focus on today?"), L("Son görevin sonucunu anlat", "How did your last task go?")]
 
     init(_ p: PersonaConfig, index: Int) {
         id = p.id
         name = p.name
-        roleTag = p.role ?? "Asistan"
+        roleTag = p.role ?? L("Asistan", "Assistant")
         color = p.color.flatMap(Color.init(hex:)) ?? Self.palette[index % Self.palette.count]
         shapeType = p.shape ?? (index % 3)
-        greeting = p.greeting ?? "Merhaba, \(p.name) burada. Soru sorabilir ya da arka plan görevi verebilirsin."
+        greeting = p.greeting ?? L("Merhaba, \(p.name) burada. Soru sorabilir ya da arka plan görevi verebilirsin.", "Hi, \(p.name) here. Ask me something or hand me a background task.")
         suggestions = p.suggestions ?? Self.defaultSuggestions
         officeRules = p.office ?? []
     }
