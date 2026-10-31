@@ -1,25 +1,68 @@
-# 🦆 DAAK Duffy
-
-**A background AI worker that does the routine work on its own, and waits for you before doing anything risky.**
+<h1 align="center">🦆 DAAK Duffy</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.3.0-f59e0b" alt="Version 0.3.0">
-  <img src="https://img.shields.io/badge/python-3.9%2B-3776ab" alt="Python 3.9+">
-  <img src="https://img.shields.io/badge/dependencies-none-3fb27f" alt="No dependencies">
-  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license">
+  <b>A self-hosted background AI worker that does the routine work on its own<br>and stops to ask you before anything risky.</b>
 </p>
 
-You give Duffy a task — from the web dashboard, the command line or a chat bridge.
-Duffy runs it through the AI command-line agent you already use (Antigravity `agy`,
-`claude -p`, `ollama run`, …), falls back to the next model when one is out of quota,
-and reports back. When the agent wants to do something you should sign off on —
-send an email, push code, delete files — Duffy stops, shows you the exact command,
-and runs it only after you press **Approve**.
+<p align="center">
+  <a href="https://github.com/benfirad/daak-duffy/releases/latest"><img src="https://img.shields.io/github/v/release/benfirad/daak-duffy?color=f59e0b&label=release" alt="Latest release"></a>
+  <a href="https://github.com/benfirad/daak-duffy/actions/workflows/tests.yml"><img src="https://github.com/benfirad/daak-duffy/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <img src="https://img.shields.io/badge/python-3.9%2B-3776ab" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/dependencies-zero-3fb27f" alt="Zero dependencies">
+  <img src="https://img.shields.io/badge/macOS-menu%20bar%20app-111" alt="macOS menu bar app">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license"></a>
+</p>
 
-It is one Python file, uses only the standard library, and is happy on an old laptop
-or a small home server that never sleeps.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#why-duffy">Why Duffy</a> ·
+  <a href="#the-macos-app">macOS app</a> ·
+  <a href="#safety-model">Safety model</a> ·
+  <a href="https://benfirad.github.io/daak-duffy/">Website</a>
+</p>
 
----
+<p align="center">
+  <img src="docs/assets/hero.png" alt="DAAK Duffy macOS app: overview console and agent list with one task waiting for approval" width="900">
+</p>
+
+You give Duffy a task from the web dashboard, the command line, a chat bridge or the
+macOS app. Duffy runs it through the AI command-line agent you already use
+(**Claude Code** `claude -p`, **Antigravity** `agy`, **Ollama** `ollama run`, or any other CLI),
+falls back to the next model when one runs out of quota, and reports back.
+
+When the agent wants to do something you should sign off on, such as sending an email,
+pushing code or deleting files, Duffy stops, shows you **the exact command**, and runs it
+only after you press **Approve**.
+
+One Python file, standard library only. Happy on an old laptop or a small home server that never sleeps.
+
+## Quick start
+
+```bash
+git clone https://github.com/benfirad/daak-duffy.git && cd daak-duffy
+python3 duffy.py daemon          # worker + dashboard on http://127.0.0.1:8899
+python3 duffy.py add "Summarise yesterday's server logs and list anything unusual"
+```
+
+On a Mac, add the menu bar app with `cd macos && ./build.command`.
+
+## Why Duffy
+
+Most agent tools either answer while you watch, or run unattended and hope for the best.
+Duffy sits in between: **autonomous for routine work, human-in-the-loop for anything with consequences.**
+
+| | Chat with an AI | Agent running unattended | **Duffy** |
+|---|:---:|:---:|:---:|
+| Works while you're away | ✗ | ✓ | ✓ |
+| Queue, history and logs that survive restarts | ✗ | sometimes | ✓ |
+| Asks before risky actions, shows the exact command | n/a | ✗ | ✓ |
+| Switches model when one hits its quota | ✗ | rarely | ✓ |
+| Uses the CLI and subscription you already have | ✗ | varies | ✓ |
+| Runs on your own machine, no account, no cloud | ✗ | varies | ✓ |
+
+**Good for:** inbox and newsletter summaries, research with sources, checking why a backup
+or cron job failed, keeping a home server healthy, small code chores in your repos,
+drafting replies that you approve before they go out.
 
 ## What you get
 
@@ -33,7 +76,7 @@ or a small home server that never sleeps.
 | **Notifications** | Any webhook that accepts `{"chatId", "message"}` — WhatsApp or Telegram bridges fit. |
 | **Office panel** *(optional)* | `office.py`: approvals, health checks, launchd services and log tails on one screen. |
 | **`ai` command** *(optional)* | Asks Claude; when Claude's usage limit is hit it switches to Antigravity, then to Duffy, until the limit resets. |
-| **macOS app** *(optional)* | Menu bar app: chat with agents, queue tasks, approve commands, see the office panel. See [`macos/`](macos/README.md). |
+| **macOS app** *(optional)* | Native menu bar app: chat with agents, queue tasks, approve commands, watch services. See [below](#the-macos-app). |
 
 ```mermaid
 flowchart LR
@@ -46,15 +89,30 @@ flowchart LR
     G -->|Reject| X["Rejected"]
 ```
 
----
+## The macOS app
 
-## Quick start
+A native SwiftUI menu bar app for people who would rather not keep a browser tab open.
+English or Turkish, follows your system language.
 
-```bash
-git clone https://github.com/benfirad/daak-duffy.git
-cd daak-duffy
-python3 duffy.py daemon
-```
+<table>
+  <tr>
+    <td width="33%"><img src="docs/assets/home.png" alt="Agent list with live status dots and an approval banner"></td>
+    <td width="33%"><img src="docs/assets/chat.png" alt="Chat with Duffy rendering a Markdown morning briefing"></td>
+    <td width="33%"><img src="docs/assets/approvals.png" alt="Approval card showing the exact command before it runs"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Agents</b><br>last result, live status, approval banner</td>
+    <td align="center"><b>Chat</b><br>Markdown replies, turn any message into a task</td>
+    <td align="center"><b>Approvals</b><br>the exact command, confirmed twice</td>
+  </tr>
+</table>
+
+<p align="center"><img src="docs/assets/tasks.png" alt="Task console with status filters, agent filter and search" width="820"></p>
+
+Build it with `cd macos && ./build.command` (macOS 13+, Xcode Command Line Tools, no Xcode project).
+Details in [`macos/README.md`](macos/README.md).
+
+## Usage
 
 Open <http://127.0.0.1:8899> and queue a task, or from another terminal:
 
@@ -158,6 +216,35 @@ ai --status                     # Claude or fallback right now?
 python3 -m unittest discover -s tests
 ```
 
+## FAQ
+
+**Which models and tools does it work with?**
+Anything you can call from a shell: Claude Code (`claude -p`), Antigravity (`agy`), Ollama,
+llama.cpp, Gemini CLI, Codex CLI or a script of your own. Duffy only needs the command to
+print its answer.
+
+**Does it need an API key or a cloud account?**
+No. Duffy has no account and talks to nothing but your agent CLI and, if you set one, your
+notification webhook. Whatever the CLI needs (a subscription, a local model) stays the CLI's business.
+
+**How does the agent ask for approval?**
+The system prompt tells it to end risky answers with
+`[APPROVAL_REQUIRED: what and why | CMD: exact command]`. Duffy parks the task, shows you
+the command, and runs it in the task's workspace only after you approve.
+
+**Can I run it on a Raspberry Pi or Linux server?**
+Yes. The worker and dashboard are plain Python 3.9+. Only the menu bar app and the launchd
+helpers are macOS-specific.
+
+**Can I reach it from my phone?**
+Bind it to a VPN address such as your Tailscale IP (`bind_hosts`) and restrict
+`allowed_clients`; the dashboard works in a mobile browser. Do not expose it to the internet.
+
+## Contributing
+
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). If Duffy saves
+you time, a ⭐ helps other people find it.
+
 ---
 
 ### Türkçe özet
@@ -168,7 +255,8 @@ ya da sohbet köprüsünden verirsin; zaten kullandığın yapay zeka komut sat�
 sonucu bildirir. Mail gönderme, kod gönderme, dosya silme gibi riskli bir adımda durur,
 çalıştıracağı komutu gösterir ve yalnızca sen **Onayla** dediğinde çalıştırır. Tek dosya,
 yalnızca Python standart kütüphanesi; eski bir dizüstüde ya da küçük bir ev sunucusunda
-rahatça çalışır. Ajan, `[ONAY_GEREKLİ: … | KOMUT: …]` biçimini de tanır.
+rahatça çalışır. Ajan, `[ONAY_GEREKLİ: … | KOMUT: …]` biçimini de tanır. macOS menü çubuğu
+uygulaması sistem dili Türkçeyse Türkçe açılır; `~/.duffy/app.json` içinde `"language": "tr"` ile de seçilebilir.
 
 ### Resumen en español
 

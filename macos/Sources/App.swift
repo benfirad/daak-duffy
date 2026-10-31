@@ -44,7 +44,7 @@ final class DuffyAppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
             button.action = #selector(statusClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.toolTip = "DAAK Duffy · Sol tık: ajanlar · Sağ tık: konsol"
+            button.toolTip = L("DAAK Duffy · Sol tık: ajanlar · Sağ tık: konsol", "DAAK Duffy · Left click: agents · Right click: console")
         }
 
         // Onay bekleyen işlem varsa menü çubuğunda sayısı görünsün
@@ -146,7 +146,7 @@ final class DuffyAppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "DAAK Duffy Konsol"
+        window.title = L("DAAK Duffy Konsol", "DAAK Duffy Console")
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.contentViewController = NSHostingController(rootView: ConsoleView().environmentObject(monitor))

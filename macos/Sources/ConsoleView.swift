@@ -14,7 +14,7 @@ struct ConsoleView: View {
                             .tag(s)
                     }
                 }
-                Section("Bağlantı") {
+                Section(L("Bağlantı", "Connection")) {
                     connectionRow
                 }
             }
@@ -41,9 +41,9 @@ struct ConsoleView: View {
                             await monitor.refreshOffice()
                         }
                     } label: {
-                        Label("Yenile", systemImage: "arrow.clockwise")
+                        Label(L("Yenile", "Refresh"), systemImage: "arrow.clockwise")
                     }
-                    .help("Şimdi yenile (⌘R)")
+                    .help(L("Şimdi yenile (⌘R)", "Refresh now (⌘R)"))
                     .keyboardShortcut("r", modifiers: .command)
                 }
             }
@@ -77,9 +77,9 @@ struct ConsoleView: View {
         HStack(spacing: 6) {
             StatusDot(color: monitor.online ? DS.ok : DS.bad, size: 6, pulse: monitor.online)
             VStack(alignment: .leading, spacing: 1) {
-                Text(monitor.online ? "\(monitor.hostLabel) · \(monitor.linkLabel)" : "\(monitor.hostLabel) çevrimdışı")
+                Text(monitor.online ? "\(monitor.hostLabel) · \(monitor.linkLabel)" : L("\(monitor.hostLabel) çevrimdışı", "\(monitor.hostLabel) offline"))
                     .font(.system(size: 11.5, weight: .medium))
-                Text(monitor.lastSync.map { "güncel \(Fmt.clock($0))" } ?? "bağlanıyor…")
+                Text(monitor.lastSync.map { L("güncel \(Fmt.clock($0))", "updated \(Fmt.clock($0))") } ?? L("bağlanıyor…", "connecting…"))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -135,7 +135,7 @@ private struct StatTile: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundStyle(tint)
-                    Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(DS.text2)
+                    Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(DS.text2).lineLimit(1)
                     Spacer()
                 }
                 Text(value)
@@ -164,27 +164,27 @@ private struct OverviewSection: View {
         let done = monitor.tasks.filter { $0.status == "done" }.count
         let failed = monitor.tasks.filter { $0.status == "failed" }.count
         SectionScroll {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                StatTile(title: "Bağlantı", value: monitor.online ? "Çevrimiçi" : "Kopuk",
-                         detail: monitor.online ? "\(monitor.hostLabel) · \(monitor.linkLabel)" : "Tüm adresler denendi",
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                StatTile(title: L("Bağlantı", "Connection"), value: monitor.online ? L("Çevrimiçi", "Online") : L("Kopuk", "Offline"),
+                         detail: monitor.online ? "\(monitor.hostLabel) · \(monitor.linkLabel)" : L("Tüm adresler denendi", "Tried every address"),
                          icon: "antenna.radiowaves.left.and.right", tint: monitor.online ? DS.ok : DS.bad)
-                StatTile(title: "Süren görevler", value: "\(monitor.activeTasks.count)",
-                         detail: "\(done) tamamlandı · \(failed) hata",
+                StatTile(title: L("Süren görevler", "Running tasks"), value: "\(monitor.activeTasks.count)",
+                         detail: L("\(done) tamamlandı · \(failed) hata", "\(done) done · \(failed) failed"),
                          icon: "bolt.fill", tint: DS.info) { monitor.openConsole(.tasks) }
-                StatTile(title: "Onay bekleyen", value: "\(monitor.pendingApprovals.count)",
-                         detail: monitor.pendingApprovals.isEmpty ? "Bekleyen işlem yok" : "Senin kararını bekliyor",
+                StatTile(title: L("Onay bekleyen", "Awaiting you"), value: "\(monitor.pendingApprovals.count)",
+                         detail: monitor.pendingApprovals.isEmpty ? L("Bekleyen işlem yok", "Nothing waiting") : L("Senin kararını bekliyor", "Needs your decision"),
                          icon: "hand.raised.fill", tint: monitor.pendingApprovals.isEmpty ? DS.ok : DS.warn) { monitor.section = .approvals }
-                StatTile(title: "Servis uyarısı", value: "\(monitor.officeProblems.count)",
-                         detail: monitor.officeOnline ? "\(monitor.officeAgents.count) servis izleniyor" : "Ofis paneline ulaşılamıyor",
+                StatTile(title: L("Servis uyarısı", "Service warnings"), value: "\(monitor.officeProblems.count)",
+                         detail: monitor.officeOnline ? L("\(monitor.officeAgents.count) servis izleniyor", plural(monitor.officeAgents.count, "service") + " watched") : L("Ofis paneline ulaşılamıyor", "Office panel unreachable"),
                          icon: "exclamationmark.triangle.fill",
                          tint: monitor.officeProblems.isEmpty ? DS.ok : DS.warn) { monitor.section = .office }
             }
 
-            SectionTitle(title: "Dikkat gerektirenler")
+            SectionTitle(title: L("Dikkat gerektirenler", "Needs attention"))
             if monitor.pendingApprovals.isEmpty && monitor.officeProblems.isEmpty && monitor.online {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(DS.ok)
-                    Text("Her şey yolunda; onay bekleyen işlem ya da servis uyarısı yok.")
+                    Text(L("Her şey yolunda; onay bekleyen işlem ya da servis uyarısı yok.", "All good: nothing waiting for approval and no service warnings."))
                         .font(.system(size: 12.5))
                         .foregroundStyle(DS.text2)
                 }
@@ -192,27 +192,27 @@ private struct OverviewSection: View {
             } else {
                 VStack(spacing: 8) {
                     if !monitor.online {
-                        attentionRow(icon: "wifi.slash", tint: DS.bad, title: "\(monitor.hostLabel) sunucusuna ulaşılamıyor",
-                                     detail: "Ağ bağlantısını ya da Duffy servisini kontrol et") {}
+                        attentionRow(icon: "wifi.slash", tint: DS.bad, title: L("\(monitor.hostLabel) sunucusuna ulaşılamıyor", "Can't reach \(monitor.hostLabel)"),
+                                     detail: L("Ağ bağlantısını ya da Duffy servisini kontrol et", "Check the network or the Duffy service")) {}
                     }
                     ForEach(monitor.pendingApprovals) { t in
                         attentionRow(icon: "hand.raised.fill", tint: DS.warn, title: t.approvalAction ?? t.title,
-                                     detail: "#\(t.id) · \(monitor.displayName(forCategory: t.category)) · onay bekliyor") {
+                                     detail: L("#\(t.id) · \(monitor.displayName(forCategory: t.category)) · onay bekliyor", "#\(t.id) · \(monitor.displayName(forCategory: t.category)) · waiting for approval")) {
                             monitor.section = .approvals
                         }
                     }
                     ForEach(monitor.officeProblems) { a in
                         attentionRow(icon: "exclamationmark.triangle.fill", tint: DS.stateColor(a.state), title: a.name,
-                                     detail: a.facts["hata"]?.text ?? a.facts["hue"]?.text ?? a.facts["durum"]?.text ?? a.role) {
+                                     detail: a.facts["hata"]?.text ?? a.facts["hue"]?.text ?? a.facts[L("durum", "status")]?.text ?? a.role) {
                             monitor.section = .office
                         }
                     }
                 }
             }
 
-            SectionTitle(title: "Son görevler", trailing: monitor.tasks.isEmpty ? nil : "\(monitor.tasks.count) görev")
+            SectionTitle(title: L("Son görevler", "Recent tasks"), trailing: monitor.tasks.isEmpty ? nil : L("\(monitor.tasks.count) görev", plural(monitor.tasks.count, "task")))
             if monitor.tasks.isEmpty {
-                EmptyState(icon: "tray", title: "Henüz görev yok", subtitle: "Görevler sekmesinden ya da ana ekrandaki + ile ekleyebilirsin.")
+                EmptyState(icon: "tray", title: L("Henüz görev yok", "No tasks yet"), subtitle: L("Görevler sekmesinden ya da ana ekrandaki + ile ekleyebilirsin.", "Add one from Tasks or with + in the main window."))
             } else {
                 VStack(spacing: 0) {
                     ForEach(monitor.tasks.prefix(6)) { t in
@@ -262,8 +262,8 @@ private struct TasksSection: View {
     @EnvironmentObject var monitor: DuffyMonitor
 
     private let filters: [(String, String)] = [
-        ("all", "Tümü"), ("active", "Süren"), ("awaiting_approval", "Onay"),
-        ("done", "Tamamlanan"), ("failed", "Hata"), ("rejected", "Reddedilen"),
+        ("all", L("Tümü", "All")), ("active", L("Süren", "Running")), ("awaiting_approval", L("Onay", "Approval")),
+        ("done", L("Tamamlanan", "Done")), ("failed", L("Hata", "Failed")), ("rejected", L("Reddedilen", "Rejected")),
     ]
 
     var body: some View {
@@ -295,29 +295,29 @@ private struct TasksSection: View {
 
             HStack(spacing: 10) {
                 Menu {
-                    Button("Tüm ajanlar") { monitor.taskAgentFilter = nil }
+                    Button(L("Tüm ajanlar", "All agents")) { monitor.taskAgentFilter = nil }
                     Divider()
                     ForEach(monitor.allCharacters) { a in Button(a.name) { monitor.taskAgentFilter = a.id.lowercased() } }
                 } label: {
-                    Label(monitor.taskAgentFilter.map { monitor.displayName(forCategory: $0) } ?? "Tüm ajanlar",
+                    Label(monitor.taskAgentFilter.map { monitor.displayName(forCategory: $0) } ?? L("Tüm ajanlar", "All agents"),
                           systemImage: "line.3.horizontal.decrease.circle")
                         .font(.system(size: 11.5))
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 Spacer()
-                Text("\(monitor.filteredTasks.count) görev")
+                Text(L("\(monitor.filteredTasks.count) görev", plural(monitor.filteredTasks.count, "task")))
                     .font(.system(size: 11))
                     .foregroundStyle(DS.text3)
-                TextField("Başlık, rapor ya da #numara ara", text: $monitor.taskSearch)
+                TextField(L("Başlık, rapor ya da #numara ara", "Search titles, reports or #number"), text: $monitor.taskSearch)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 220)
             }
 
             let list = monitor.filteredTasks
             if list.isEmpty {
-                EmptyState(icon: "line.3.horizontal.decrease", title: "Bu filtreye uyan görev yok",
-                           subtitle: "Filtreyi değiştir ya da yukarıdan yeni görev ekle.")
+                EmptyState(icon: "line.3.horizontal.decrease", title: L("Bu filtreye uyan görev yok", "No tasks match this filter"),
+                           subtitle: L("Filtreyi değiştir ya da yukarıdan yeni görev ekle.", "Change the filter or add a task above."))
             } else {
                 ForEach(list) { TaskCard(task: $0) }
             }
@@ -342,16 +342,16 @@ private struct TasksSection: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help("Görevi yapacak ajan")
+            .help(L("Görevi yapacak ajan", "Agent for this task"))
 
             Divider().frame(height: 18)
 
-            TextField("Yeni arka plan görevi: ne yapılsın?", text: $monitor.newTaskTitle)
+            TextField(L("Yeni arka plan görevi: ne yapılsın?", "New background task: what should be done?"), text: $monitor.newTaskTitle)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .onSubmit(submit)
 
-            Button("Kuyruğa ekle", action: submit)
+            Button(L("Kuyruğa ekle", "Queue"), action: submit)
                 .buttonStyle(.borderedProminent)
                 .tint(DS.accent)
                 .disabled(monitor.newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -415,15 +415,15 @@ private struct TaskCard: View {
 
             HStack(spacing: 14) {
                 if long {
-                    Button(expanded ? "Daralt" : "Tüm raporu göster") { withAnimation { expanded.toggle() } }
+                    Button(expanded ? L("Daralt", "Collapse") : L("Tüm raporu göster", "Show full report")) { withAnimation { expanded.toggle() } }
                 }
-                if !summary.isEmpty { Button("Raporu kopyala") { monitor.copy(summary) } }
+                if !summary.isEmpty { Button(L("Raporu kopyala", "Copy report")) { monitor.copy(summary) } }
                 Spacer()
                 if TaskState.canRetry(task.status) {
                     Button {
-                        Task { await monitor.taskAction("retry", id: task.id, label: "Görev yeniden başlatıldı") }
+                        Task { await monitor.taskAction("retry", id: task.id, label: L("Görev yeniden başlatıldı", "Task restarted")) }
                     } label: {
-                        Label("Tekrar çalıştır", systemImage: "arrow.clockwise")
+                        Label(L("Tekrar çalıştır", "Run again"), systemImage: "arrow.clockwise")
                     }
                 }
             }
@@ -443,7 +443,7 @@ private struct ApprovalBox: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(task.approvalAction ?? "Bu adım senin onayını bekliyor", systemImage: "hand.raised.fill")
+            Label(task.approvalAction ?? L("Bu adım senin onayını bekliyor", "This step needs your approval"), systemImage: "hand.raised.fill")
                 .font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(DS.warn)
             if let cmd = task.approvalCmd, !cmd.isEmpty {
@@ -456,21 +456,21 @@ private struct ApprovalBox: View {
                     Button { monitor.copy(cmd) } label: { Image(systemName: "doc.on.doc") }
                         .buttonStyle(.plain)
                         .foregroundStyle(DS.text2)
-                        .help("Komutu kopyala")
+                        .help(L("Komutu kopyala", "Copy command"))
                 }
                 .padding(10)
                 .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             HStack {
-                Text("Onaylarsan bu komut \(monitor.hostLabel) üzerinde çalıştırılır.")
+                Text(L("Onaylarsan bu komut \(monitor.hostLabel) üzerinde çalıştırılır.", "If you approve, this command runs on \(monitor.hostLabel)."))
                     .font(.system(size: 11))
                     .foregroundStyle(DS.text3)
                 Spacer()
-                Button("Reddet") {
-                    Task { await monitor.taskAction("reject", id: task.id, label: "Reddedildi") }
+                Button(L("Reddet", "Reject")) {
+                    Task { await monitor.taskAction("reject", id: task.id, label: L("Reddedildi", "Rejected")) }
                 }
                 .buttonStyle(.bordered)
-                Button("Onayla…") { confirming = true }
+                Button(L("Onayla…", "Approve…")) { confirming = true }
                     .buttonStyle(.borderedProminent)
                     .tint(DS.ok)
             }
@@ -478,11 +478,11 @@ private struct ApprovalBox: View {
         .padding(12)
         .background(DS.warn.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(DS.warn.opacity(0.3)) }
-        .confirmationDialog("#\(task.id) onaylansın mı?", isPresented: $confirming) {
-            Button("Onayla ve çalıştır") {
-                Task { await monitor.taskAction("approve", id: task.id, label: "Onaylandı, çalıştırılıyor") }
+        .confirmationDialog(L("#\(task.id) onaylansın mı?", "Approve #\(task.id)?"), isPresented: $confirming) {
+            Button(L("Onayla ve çalıştır", "Approve and run")) {
+                Task { await monitor.taskAction("approve", id: task.id, label: L("Onaylandı, çalıştırılıyor", "Approved, running")) }
             }
-            Button("Vazgeç", role: .cancel) {}
+            Button(L("Vazgeç", "Cancel"), role: .cancel) {}
         } message: {
             Text(task.approvalCmd ?? task.approvalAction ?? task.title)
         }
@@ -497,10 +497,10 @@ private struct ApprovalsSection: View {
     var body: some View {
         SectionScroll {
             if monitor.pendingApprovals.isEmpty {
-                EmptyState(icon: "checkmark.shield", title: "Onay bekleyen işlem yok",
-                           subtitle: "Ajanlar e-posta gönderme, ödeme, silme gibi riskli bir adıma geldiğinde burada durur ve senin kararını bekler.")
+                EmptyState(icon: "checkmark.shield", title: L("Onay bekleyen işlem yok", "Nothing waiting for approval"),
+                           subtitle: L("Ajanlar e-posta gönderme, ödeme, silme gibi riskli bir adıma geldiğinde burada durur ve senin kararını bekler.", "When an agent reaches a risky step, like sending email, paying or deleting, it stops here and waits for you."))
             } else {
-                Text("Her onay, gösterilen komutu \(monitor.hostLabel) üzerinde çalıştırır. Emin değilsen reddet; ajan başka yol arar.")
+                Text(L("Her onay, gösterilen komutu \(monitor.hostLabel) üzerinde çalıştırır. Emin değilsen reddet; ajan başka yol arar.", "Each approval runs the command shown on \(monitor.hostLabel). If you're not sure, reject it and the agent will find another way."))
                     .font(.system(size: 12))
                     .foregroundStyle(DS.text2)
                 ForEach(monitor.pendingApprovals) { TaskCard(task: $0) }
@@ -518,13 +518,13 @@ private struct OfficeSection: View {
         SectionScroll {
             HStack(spacing: 8) {
                 StatusDot(color: monitor.officeOnline ? DS.ok : DS.bad, size: 6, pulse: monitor.officeOnline)
-                Text(monitor.officeOnline ? "Ofis paneli bağlı · \(Fmt.ago(monitor.officeSync)) güncellendi" : "Ofis paneline ulaşılamıyor")
+                Text(monitor.officeOnline ? L("Ofis paneli bağlı · \(Fmt.ago(monitor.officeSync)) güncellendi", "Office panel connected · updated \(Fmt.ago(monitor.officeSync))") : L("Ofis paneline ulaşılamıyor", "Office panel unreachable"))
                     .font(.system(size: 12))
                     .foregroundStyle(DS.text2)
             }
             if monitor.officeAgents.isEmpty {
-                EmptyState(icon: "building.2", title: "Ofis verisi yok",
-                           subtitle: "office.py çalışıyorsa birkaç saniye içinde görünür. Varsayılan port 8900.")
+                EmptyState(icon: "building.2", title: L("Ofis verisi yok", "No office data"),
+                           subtitle: L("office.py çalışıyorsa birkaç saniye içinde görünür. Varsayılan port 8900.", "If office.py is running, its data shows up within seconds. Default port 8900."))
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12, alignment: .top)], alignment: .leading, spacing: 12) {
                     ForEach(monitor.officeAgents.sorted { ($0.severity, $0.name) < ($1.severity, $1.name) }) { OfficeCard(agent: $0) }
@@ -543,7 +543,7 @@ private struct OfficeCard: View {
             HStack {
                 Text(agent.name).font(.system(size: 13, weight: .bold)).foregroundStyle(DS.text1).lineLimit(1)
                 Spacer()
-                Text(agent.state == "ok" ? "çalışıyor" : (agent.state == "warn" ? "dikkat" : "kapalı"))
+                Text(agent.state == "ok" ? L("çalışıyor", "running") : (agent.state == "warn" ? L("dikkat", "warning") : L("kapalı", "down")))
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(tint)
                     .padding(.horizontal, 7)
@@ -589,16 +589,16 @@ private struct ServicesSection: View {
             .sorted { (rank($0), $0.label) < (rank($1), $1.label) }
         SectionScroll {
             HStack(spacing: 14) {
-                Label("\(running) çalışıyor", systemImage: "circle.fill").foregroundStyle(DS.ok)
-                Label("\(failing) hatalı", systemImage: "circle.fill").foregroundStyle(failing > 0 ? DS.warn : DS.text3)
-                Label("\(all.count - running - failing) bekliyor", systemImage: "circle.fill").foregroundStyle(DS.text3)
+                Label(L("\(running) çalışıyor", "\(running) running"), systemImage: "circle.fill").foregroundStyle(DS.ok)
+                Label(L("\(failing) hatalı", "\(failing) failing"), systemImage: "circle.fill").foregroundStyle(failing > 0 ? DS.warn : DS.text3)
+                Label(L("\(all.count - running - failing) bekliyor", "\(all.count - running - failing) idle"), systemImage: "circle.fill").foregroundStyle(DS.text3)
                 Spacer()
-                Toggle("Sadece hatalılar", isOn: $onlyProblems).toggleStyle(.switch).controlSize(.small)
-                TextField("Servis ara", text: $query).textFieldStyle(.roundedBorder).frame(width: 180)
+                Toggle(L("Sadece hatalılar", "Failing only"), isOn: $onlyProblems).toggleStyle(.switch).controlSize(.small)
+                TextField(L("Servis ara", "Search services"), text: $query).textFieldStyle(.roundedBorder).frame(width: 180)
             }
             if list.isEmpty {
                 EmptyState(icon: "server.rack",
-                           title: all.isEmpty ? "Servis listesi yok" : (onlyProblems && query.isEmpty ? "Hatalı servis yok" : "Eşleşen servis yok"))
+                           title: all.isEmpty ? L("Servis listesi yok", "No service list") : (onlyProblems && query.isEmpty ? L("Hatalı servis yok", "No failing services") : L("Eşleşen servis yok", "No matching services")))
             } else {
                 VStack(spacing: 0) {
                     ForEach(list) { svc in
@@ -607,7 +607,7 @@ private struct ServicesSection: View {
                             Circle().fill(r == 1 ? DS.ok : (r == 0 ? DS.warn : DS.muted)).frame(width: 7, height: 7)
                             Text(svc.label).font(.system(size: 12, design: .monospaced)).foregroundStyle(DS.text1).lineLimit(1)
                             Spacer()
-                            Text(r == 1 ? "çalışıyor · pid \(svc.pid!)" : (r == 0 ? "hata · çıkış kodu \(svc.lastExit)" : "bekliyor"))
+                            Text(r == 1 ? L("çalışıyor · pid \(svc.pid!)", "running · pid \(svc.pid!)") : (r == 0 ? L("hata · çıkış kodu \(svc.lastExit)", "failed · exit code \(svc.lastExit)") : L("bekliyor", "idle")))
                                 .font(.system(size: 11))
                                 .foregroundStyle(r == 0 ? DS.warn : DS.text3)
                         }
@@ -629,7 +629,7 @@ private struct CommandsSection: View {
 
     var body: some View {
         SectionScroll {
-            Text("Terminalden ya da sohbet köprüsünden aynı işleri yapmak için hazır komutlar.")
+            Text(L("Terminalden ya da sohbet köprüsünden aynı işleri yapmak için hazır komutlar.", "Ready-made commands for doing the same from a terminal or a chat bridge."))
                 .font(.system(size: 12))
                 .foregroundStyle(DS.text2)
             ForEach(monitor.config.commands ?? AppConfig.defaultCommands) { item in
@@ -647,7 +647,7 @@ private struct CommandsSection: View {
                             Text(d).font(.system(size: 11.5)).foregroundStyle(DS.text3)
                         }
                     }
-                    Button { monitor.copy(item.command) } label: { Label("Kopyala", systemImage: "doc.on.doc") }
+                    Button { monitor.copy(item.command) } label: { Label(L("Kopyala", "Copy"), systemImage: "doc.on.doc") }
                         .buttonStyle(.bordered)
                 }
                 .card()

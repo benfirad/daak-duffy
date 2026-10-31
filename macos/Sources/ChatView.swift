@@ -36,7 +36,7 @@ struct ChatView: View {
                     .background(DS.pill, in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Geri (Esc)")
+            .help(L("Geri (Esc)", "Back (Esc)"))
 
             CuteBlobAvatar(color: agent.color, shapeType: agent.shapeType, size: 32,
                            showStarBadge: agent.id == monitor.chief.id)
@@ -58,11 +58,11 @@ struct ChatView: View {
             Spacer()
 
             Menu {
-                Button("Görevlerini konsolda aç") { monitor.openConsole(.tasks, agentFilter: agent.id) }
-                Button("Ajan ofisini aç") { monitor.openConsole(.office) }
+                Button(L("Görevlerini konsolda aç", "Open tasks in the console")) { monitor.openConsole(.tasks, agentFilter: agent.id) }
+                Button(L("Ajan ofisini aç", "Open the agent office")) { monitor.openConsole(.office) }
                 Divider()
-                Button("Sohbeti kopyala") {
-                    monitor.copy(msgs.map { "\($0.isUser ? "Ben" : agent.name): \($0.message)" }.joined(separator: "\n\n"))
+                Button(L("Sohbeti kopyala", "Copy conversation")) {
+                    monitor.copy(msgs.map { "\($0.isUser ? L("Ben", "Me") : agent.name): \($0.message)" }.joined(separator: "\n\n"))
                 }
                 .disabled(msgs.isEmpty)
             } label: {
@@ -74,7 +74,7 @@ struct ChatView: View {
             .fixedSize()
             .frame(width: 30, height: 30)
             .background(DS.pill, in: Circle())
-            .help("Diğer işlemler")
+            .help(L("Diğer işlemler", "More"))
         }
         .padding(.horizontal, 16)
         .padding(.top, 24)
@@ -82,9 +82,9 @@ struct ChatView: View {
     }
 
     private func statusLine(_ state: String?) -> String {
-        if monitor.waitingFor == agent.id { return "yazıyor…" }
-        if !monitor.online { return "çevrimdışı · \(agent.roleTag)" }
-        if let state, state != "ok" { return "servis uyarısı · \(agent.roleTag)" }
+        if monitor.waitingFor == agent.id { return L("yazıyor…", "typing…") }
+        if !monitor.online { return L("çevrimdışı · \(agent.roleTag)", "offline · \(agent.roleTag)") }
+        if let state, state != "ok" { return L("servis uyarısı · \(agent.roleTag)", "service warning · \(agent.roleTag)") }
         return agent.roleTag
     }
 
@@ -102,7 +102,7 @@ struct ChatView: View {
                         .foregroundStyle(DS.text2)
                         .lineLimit(1)
                     Spacer(minLength: 6)
-                    Text(agentTasks.count > 1 ? "\(agentTasks.count) görev" : Fmt.relative(last.lastActivity))
+                    Text(agentTasks.count > 1 ? L("\(agentTasks.count) görev", "\(agentTasks.count) tasks") : Fmt.relative(last.lastActivity))
                         .font(.system(size: 10.5))
                         .foregroundStyle(DS.text3)
                     Image(systemName: "chevron.right")
@@ -115,7 +115,7 @@ struct ChatView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Görevleri konsolda aç")
+            .help(L("Görevleri konsolda aç", "Open tasks in the console"))
         }
     }
 
@@ -230,8 +230,8 @@ struct ChatView: View {
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                     )
                     .contextMenu {
-                        Button("Kopyala") { monitor.copy(m.message) }
-                        Button("Bunu görev yap") { Task { _ = await monitor.addTask(title: m.message, category: agent.id) } }
+                        Button(L("Kopyala", "Copy")) { monitor.copy(m.message) }
+                        Button(L("Bunu görev yap", "Turn into a task")) { Task { _ = await monitor.addTask(title: m.message, category: agent.id) } }
                     }
                 if let d = m.date {
                     Text(Fmt.time(d))
@@ -249,7 +249,7 @@ struct ChatView: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("\(agent.name) ile konuş…", text: $monitor.chatInput, axis: .vertical)
+                TextField(L("\(agent.name) ile konuş…", "Message \(agent.name)…"), text: $monitor.chatInput, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13.5))
                     .lineLimit(1...5)
@@ -269,7 +269,7 @@ struct ChatView: View {
                 .buttonStyle(.plain)
                 .disabled(!canSend)
                 .keyboardShortcut(.return, modifiers: .command)
-                .help("Gönder (Enter)")
+                .help(L("Gönder (Enter)", "Send (Enter)"))
             }
 
             HStack(spacing: 6) {
@@ -279,15 +279,15 @@ struct ChatView: View {
                         if await monitor.addTask(title: text, category: agent.id) { monitor.chatInput = "" }
                     }
                 } label: {
-                    Label("Arka plan görevi yap", systemImage: "bolt.horizontal.circle")
+                    Label(L("Arka plan görevi yap", "Run as background task"), systemImage: "bolt.horizontal.circle")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(canSend ? DS.text1 : DS.text3)
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend)
-                .help("Yazdığını sohbet yerine kuyruğa ekler; \(agent.name) arka planda çalışıp sonucu bildirir")
+                .help(L("Yazdığını sohbet yerine kuyruğa ekler; \(agent.name) arka planda çalışıp sonucu bildirir", "Queues what you typed instead of chatting; \(agent.name) works on it in the background and reports back"))
                 Spacer()
-                Text("Enter gönderir · ⌥Enter yeni satır")
+                Text(L("Enter gönderir · ⌥Enter yeni satır", "Enter to send · ⌥Enter for a new line"))
                     .font(.system(size: 10))
                     .foregroundStyle(DS.text3)
             }

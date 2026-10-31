@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-10-31
+
+- macOS app speaks English, or Turkish when that is the system language (`"language"` in `~/.duffy/app.json` overrides).
+- The app now reads `office.py` from this repository: Duffy status and health checks show up as cards and drive the agents' status dots (`"health:<name>"`).
+- New project website (GitHub Pages, `docs/`), screenshots in the README, CI for tests and the app build, contributing and security guides, issue templates.
+- `duffy.py --version` reports the release version.
+
 ## 0.3.0 — 2026-10-31
 
 - New: native macOS menu bar app in `macos/` (agents, chat, console with overview, tasks, approvals, office panel, services and commands).

@@ -1,7 +1,10 @@
 # DAAK Duffy for macOS
 
 A native menu bar app for Duffy. Talk to your agents, queue background tasks, and approve
-risky steps without opening a browser. The interface is in Turkish.
+risky steps without opening a browser. The interface is in English, or Turkish when that is
+your system language (override with `"language"` in the config).
+
+<p align="center"><img src="../docs/assets/hero.png" alt="DAAK Duffy console and agent list" width="820"></p>
 
 Requires macOS 13 or newer and the Xcode Command Line Tools. No Xcode project, no dependencies.
 
@@ -26,7 +29,7 @@ swapping the bundle and starts it again afterwards. Override the label with
 | **Console → Overview** | Connection, running tasks, pending approvals and service warnings, plus what needs your attention and the latest tasks. |
 | **Console → Tasks** | Add tasks for any agent, filter by status or agent, search titles, reports and `#numbers`, expand long reports, retry. |
 | **Console → Approvals** | The exact command the agent wants to run. Approving asks once more before it runs. |
-| **Console → Agent Office / Services** | Cards from `office.py` with problems first; launchd services split into running, failing and idle. |
+| **Console → Agent Office / Services** | Health checks and agents from `office.py`, problems first; launchd services split into running, failing and idle. An agent's status dot follows the entries listed in its `office` setting (for example `"health:Home Assistant"`). |
 | **Console → Commands** | Copyable CLI commands. |
 
 The menu bar icon shows the number of pending approvals. Left click opens the agents,
@@ -41,11 +44,12 @@ at another file).
 
 | Key | Meaning |
 |---|---|
+| `language` | `"en"` or `"tr"`. Default: Turkish if that is the system language, otherwise English. |
 | `hosts` | Addresses tried in order; the app moves to the next one when a request fails (for example a cable link first, then a VPN). |
 | `duffyPort`, `officePort` | Ports of `duffy.py` (8899) and `office.py` (8900). |
 | `hostLabel`, `linkLabels` | Names shown in the status line, such as "Home server · VPN". |
 | `chief`, `agents` | Characters. `id` must match the persona and task category on the server. `color` is a hex colour, `shape` is 0–2, `suggestions` are the first-question buttons. |
-| `agents[].office` | Office panel entries that drive the agent's status dot: an entry id such as `"health"`, or `"name:email"` to match by name. |
+| `agents[].office` | Office panel entries that drive the agent's status dot: an entry id such as `"health:Home Assistant"` (one of `office.py`'s health checks), or `"name:email"` to match by name. |
 | `commands` | Entries on the Commands page. |
 
 Keep personal names, addresses and greetings in `~/.duffy/app.json`; the file is never
