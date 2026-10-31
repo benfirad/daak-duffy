@@ -9,9 +9,11 @@ jobs:
   python:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, python: "3.9" }
+          # 3.9 is no longer on GitHub's Ubuntu images; macOS' system Python 3.9 is tested locally
+          - { os: ubuntu-latest, python: "3.10" }
           - { os: ubuntu-latest, python: "3.13" }
           - { os: macos-latest, python: "3.13" }
     steps:
