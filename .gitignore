@@ -11,3 +11,5 @@ config.yaml
 config.json
 workspaces/
 .DS_Store
+macos/build/
+macos/app.json

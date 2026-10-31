@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-10-31
+
+- New: native macOS menu bar app in `macos/` (agents, chat, console with overview, tasks, approvals, office panel, services and commands).
+- Approving a command from the app asks for confirmation and shows the exact command.
+- Characters, server addresses and commands come from `~/.duffy/app.json`; without it the app uses the personas the server reports.
+- The app accepts both task field names (`result` / `result_summary`, `approval_summary` / `approval_Action`).
+- `build.command` stops the LaunchAgent before swapping the bundle; replacing a running app made macOS kill it for an invalid signature.
+
 ## 0.2.0 — 2026-10-31
 
 Rewritten from the version that has been running 24/7 on a home server.

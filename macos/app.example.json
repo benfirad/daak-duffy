@@ -1,0 +1,38 @@
+{
+  "hosts": ["127.0.0.1", "100.64.0.10"],
+  "duffyPort": 8899,
+  "officePort": 8900,
+  "hostLabel": "Home server",
+  "linkLabels": { "127.0.0.1": "local", "100.64.0.10": "VPN" },
+  "chief": {
+    "id": "duffy",
+    "name": "Duffy",
+    "role": "Background worker",
+    "greeting": "I'm on duty around the clock. Ask me something or hand me a background task.",
+    "suggestions": ["What happened today?", "Is anything waiting for my approval?"],
+    "office": ["duffy"]
+  },
+  "agents": [
+    {
+      "id": "mail",
+      "name": "Mail Mia",
+      "role": "Inbox & calendar",
+      "color": "#FA9E14",
+      "shape": 2,
+      "greeting": "I keep an eye on your inbox and calendar and pull out what matters.",
+      "suggestions": ["Anything important in my inbox?", "What's on my calendar today?"],
+      "office": ["name:email"]
+    },
+    {
+      "id": "home",
+      "name": "Home Hank",
+      "role": "Lights, TV & servers",
+      "color": "#1FCC61",
+      "office": ["health", "name:backup"]
+    }
+  ],
+  "commands": [
+    { "title": "Queue a task", "command": "duffy add \"Summarise my inbox\" -c mail", "desc": "Runs in the background and reports back." },
+    { "title": "List tasks", "command": "duffy list" }
+  ]
+}
