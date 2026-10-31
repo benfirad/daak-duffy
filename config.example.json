@@ -1,0 +1,34 @@
+{
+  "_comment": "Copy to ~/.duffy/config.json. Every key is optional; missing keys use the defaults in duffy.py.",
+
+  "bind_hosts": ["127.0.0.1"],
+  "port": 8899,
+  "allowed_clients": [],
+
+  "agent_command": ["agy", "--model", "{model}", "-p", "{prompt}"],
+  "models": ["gemini-3.8-flash-high", "claude-sonnet-5-5-high", "gemini-3.1-pro-high"],
+  "agent_timeout_seconds": 300,
+  "quota_markers": ["RESOURCE_EXHAUSTED", "quota", "rate limit", "usage limit"],
+
+  "approved_command_timeout_seconds": 120,
+
+  "notify": {
+    "webhook_url": "",
+    "chat_id": ""
+  },
+
+  "agents": {
+    "duffy": { "name": "Duffy", "prompt": "You are Duffy, a concise and practical operations assistant." },
+    "research": { "name": "Researcher", "prompt": "You research questions carefully and cite where each fact comes from." }
+  },
+
+  "office": {
+    "port": 8900,
+    "bind_hosts": ["127.0.0.1"],
+    "allowed_clients": [],
+    "duffy_url": "http://127.0.0.1:8899",
+    "health_checks": { "Agent bridge": "http://127.0.0.1:8765/v1/models" },
+    "service_prefixes": ["com.example."],
+    "logs": { "duffy": "~/.duffy/duffy.log" }
+  }
+}
