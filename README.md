@@ -1,112 +1,180 @@
-# DUFFY 🦆 — Zero-Cost Autonomous Background Agent & Approval Queue
+# 🦆 DAAK Duffy
+
+**A background AI worker that does the routine work on its own, and waits for you before doing anything risky.**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
-  <img src="https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/Cost-0%20EUR-success.svg" alt="0 EUR Cost">
-  <img src="https://img.shields.io/badge/HITL-Human--in--the--Loop-orange.svg" alt="Human in the loop">
-  <img src="https://img.shields.io/badge/UI-Web%20%7C%20CLI%20%7C%20WhatsApp-purple.svg" alt="Interfaces">
+  <img src="https://img.shields.io/badge/version-0.2.0-f59e0b" alt="Version 0.2.0">
+  <img src="https://img.shields.io/badge/python-3.9%2B-3776ab" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/dependencies-none-3fb27f" alt="No dependencies">
+  <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license">
 </p>
 
-**DUFFY** is an open-source, 24/7 autonomous background worker daemon designed to execute long-running AI tasks, research jobs, bug fixes, and scheduled routines with **zero API cost** via multi-model quota cycling, backed by a strict **Human-in-the-Loop (HITL) approval queue**.
+You give Duffy a task — from the web dashboard, the command line or a chat bridge.
+Duffy runs it through the AI command-line agent you already use (Antigravity `agy`,
+`claude -p`, `ollama run`, …), falls back to the next model when one is out of quota,
+and reports back. When the agent wants to do something you should sign off on —
+send an email, push code, delete files — Duffy stops, shows you the exact command,
+and runs it only after you press **Approve**.
+
+It is one Python file, uses only the standard library, and is happy on an old laptop
+or a small home server that never sleeps.
 
 ---
 
-## 🌐 Quick Language Selector / Çok Dilli Özet
-- [English](#-english)
-- [Türkçe](#-türkçe)
-- [日本語](#-日本語)
-- [中文](#-中文)
-- [Deutsch](#-deutsch)
-- [Español](#-español)
+## What you get
 
----
+| | |
+|---|---|
+| **Task queue** | SQLite queue with a full log per task. Survives restarts. |
+| **Approval gate** | The agent ends its answer with `[APPROVAL_REQUIRED: what and why \| CMD: command]`. Nothing runs until a human approves. |
+| **Model fallback** | Give it a list of models; quota or rate-limit answers move it to the next one. |
+| **Dashboard** | Queue, results, approve / reject / retry, light and dark mode. |
+| **Chat agents** | Optional personas you can talk to; each reply runs through the same agent command. |
+| **Notifications** | Any webhook that accepts `{"chatId", "message"}` — WhatsApp or Telegram bridges fit. |
+| **Office panel** *(optional)* | `office.py`: approvals, health checks, launchd services and log tails on one screen. |
+| **`ai` command** *(optional)* | Asks Claude; when Claude's usage limit is hit it switches to Antigravity, then to Duffy, until the limit resets. |
 
-## 🇬🇧 English
-
-### Why Duffy?
-Existing AI agents often burn expensive API credits or execute dangerous actions unchecked. Duffy solves this:
-1. **0 EUR API Cost:** Cycles through free local/cloud CLI quotas (Gemini, Claude, Ollama, OpenAI) with automatic fallback.
-2. **Human-in-the-Loop (HITL):** High-risk actions (code deployments, emails, payments) are held in a persistent SQLite queue until approved via Web UI, WhatsApp, or CLI.
-3. **Headless & Background-First:** Runs silently on low-power servers, old laptops, or Raspberry Pis without opening GUI windows.
-
-### Architecture
 ```mermaid
-flowchart TD
-    Task["Task Ingestion (CLI / Cron / Web / Chat)"] --> RiskCheck{"Risk Level"}
-    RiskCheck -- "Level 0 (Safe Read/Draft)" --> AutoRun["Auto-Approved Queue"]
-    RiskCheck -- "Level 1+ (Write/Deploy/Send)" --> Gate["Approval Gate (Pending)"]
-    
-    Gate -->|"Approved via Web / WhatsApp / CLI"| AutoRun
-    Gate -->|"Rejected"| Trash["Cancelled / Archived"]
-    
-    AutoRun --> Worker["Duffy Worker Loop"]
-    Worker --> FallbackPool{"Multi-Model Fallback"}
-    FallbackPool -->|"Primary"| M1["Gemini Flash"]
-    FallbackPool -->|"Quota Exceeded"| M2["Gemini Pro"]
-    FallbackPool -->|"Fallback"| M3["Claude / Ollama"]
-    Worker --> State["Persistent SQLite DB"]
+flowchart LR
+    A["You: dashboard / CLI / chat"] --> Q[("Task queue")]
+    Q --> W["Duffy worker"]
+    W --> M{"Agent CLI<br/>model 1 → 2 → 3"}
+    M -->|report| D["Done + notify"]
+    M -->|APPROVAL_REQUIRED| G["Waiting for you"]
+    G -->|Approve| R["Run the exact command"] --> D
+    G -->|Reject| X["Rejected"]
 ```
 
-### Quickstart
+---
+
+## Quick start
+
 ```bash
-# Clone and run
 git clone https://github.com/benfirad/daak-duffy.git
 cd daak-duffy
-
-# Start background daemon & web dashboard
 python3 duffy.py daemon
+```
 
-# In another terminal: enqueue a task
-python3 duffy.py add -p "Audit system logs and draft daily report" -r 0
+Open <http://127.0.0.1:8899> and queue a task, or from another terminal:
 
-# Open Dashboard
-# http://localhost:8899
+```bash
+python3 duffy.py add "Summarise yesterday's server logs and list anything unusual"
+python3 duffy.py list
+python3 duffy.py show 1
+```
+
+By default Duffy calls `agy --model <model> -p <prompt>`. To use something else, set
+`agent_command` in `~/.duffy/config.json` (see below).
+
+## Configuration
+
+Copy [`config.example.json`](config.example.json) to `~/.duffy/config.json`. Every key is
+optional.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `agent_command` | `["agy", "--model", "{model}", "-p", "{prompt}"]` | Command run per attempt. `{model}`, `{prompt}` and `{workspace}` are filled in. |
+| `models` | `["default"]` | Tried in order until one answers. |
+| `quota_markers` | quota / rate limit texts | Short answers containing these count as "try the next model". |
+| `bind_hosts` | `["127.0.0.1"]` | Addresses the dashboard listens on. Add a VPN address (e.g. your Tailscale IP) to reach it from other devices. |
+| `allowed_clients` | `[]` (anyone who can connect) | IPs or CIDR ranges allowed to use the dashboard, e.g. `["100.64.0.0/10"]`. |
+| `notify.webhook_url`, `notify.chat_id` | empty | Where to send "done" and "needs approval" messages. |
+| `agents` | one `duffy` persona | Chat personas: `{"id": {"name": "...", "prompt": "..."}}`. |
+
+Examples for `agent_command`:
+
+```jsonc
+["claude", "-p", "{prompt}", "--model", "{model}"]   // Claude Code
+["ollama", "run", "{model}", "{prompt}"]               // local models
+["agy", "--model", "{model}", "-p", "{prompt}"]        // Antigravity CLI
+```
+
+`DUFFY_HOME`, `DUFFY_CONFIG`, `DUFFY_PORT` and `DUFFY_BIND` override the file.
+
+## Commands
+
+| Command | |
+|---|---|
+| `duffy.py daemon` | Worker loop + dashboard |
+| `duffy.py add "task" [-c category]` | Queue a task |
+| `duffy.py list` / `show <id>` | Recent tasks / one task with its log |
+| `duffy.py approve <id>` / `reject <id>` / `retry <id>` | Decide on a gated task, or re-queue |
+| `duffy.py step` | Process one task and exit (handy for cron) |
+
+The HTTP API mirrors these: `GET /api/status`, `GET /api/logs?id=`, and `POST /api/add`,
+`/api/approve`, `/api/reject`, `/api/retry`, `/api/chat` with a JSON body.
+
+## Run it in the background (macOS)
+
+```bash
+mkdir -p ~/.duffy && cp duffy.py ~/.duffy/
+cp examples/com.example.duffy.plist ~/Library/LaunchAgents/
+# edit the paths in the plist, then:
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.duffy.plist
+```
+
+On Linux, a systemd user service running `python3 duffy.py daemon` does the same job.
+
+## Office panel
+
+`office.py` is a second small server (default port 8900) for when you run several
+background agents. Configure it under the `office` key: Duffy's URL, HTTP health
+checks, launchd label prefixes to watch, and the log files it may show. It forwards
+approvals and new tasks to Duffy and never writes anything itself.
+
+```bash
+python3 office.py   # http://127.0.0.1:8900
+```
+
+## The `ai` command
+
+`bin/ai` asks Claude first. If Claude answers with a usage-limit message, it remembers the
+reset time and sends every question to Antigravity (`agy`) until then; if Antigravity is
+not running, it asks your Duffy server instead.
+
+```bash
+cp bin/ai ~/.local/bin/ai
+ai "explain this stack trace"   # one question
+ai                              # chat
+ai --status                     # Claude or fallback right now?
+```
+
+## Safety model
+
+- **Default deny on the network.** The dashboard listens on loopback only until you add an
+  address, and `allowed_clients` can restrict it further. There is no login: put it behind
+  a VPN such as Tailscale rather than exposing it to a LAN or the internet.
+- **Nothing gated runs by itself.** A task that asks for approval stays in
+  `awaiting_approval` until a person approves it; `approve` refuses tasks that never asked.
+- **You see the exact command.** The dashboard and notifications show the command text
+  that will run, in the task's own working directory, with a timeout.
+- **Your agent's permissions still apply.** Duffy runs the agent CLI you configure; give that
+  CLI only the access you are comfortable with.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests
 ```
 
 ---
 
-## 🇹🇷 Türkçe
-**Duffy**, 7/24 arka planda kesintisiz çalışan, çoklu model havuzuyla **0 EUR API maliyetiyle** görev icra eden ve kritik aksiyonlarda **insan onay mekanizması (Human-in-the-Loop)** barındıran açık kaynaklı bir yapay zeka işçisidir.
-- **Onay Kuyruğu:** Riskli eylemler (kod gönderme, mail atma, sistem ayarları) WhatsApp, Web Paneli veya Terminal üzerinden onaylanana kadar bekletilir.
-- **Headless:** Eski Mac'lerde, Linux sunucularda veya mini PC'lerde ekranda hiçbir pencere açmadan arka planda çalışır.
+### Türkçe özet
 
----
+Duffy, arka planda 7/24 çalışan bir yapay zeka işçisi. Görevi web panelinden, terminalden
+ya da sohbet köprüsünden verirsin; zaten kullandığın yapay zeka komut satırı aracıyla
+(`agy`, `claude -p`, `ollama`…) çalıştırır, kotası biten modelden sonrakine geçer ve
+sonucu bildirir. Mail gönderme, kod gönderme, dosya silme gibi riskli bir adımda durur,
+çalıştıracağı komutu gösterir ve yalnızca sen **Onayla** dediğinde çalıştırır. Tek dosya,
+yalnızca Python standart kütüphanesi; eski bir dizüstüde ya da küçük bir ev sunucusunda
+rahatça çalışır. Ajan, `[ONAY_GEREKLİ: … | KOMUT: …]` biçimini de tanır.
 
-## 🇯🇵 日本語
-**Duffy**は、24時間365日バックグラウンドで自律稼働するオープンソースのAIワーカーデーモンです。
-- **APIコスト0円:** Gemini、Claude、Ollamaなどの無料クォータを自動巡回・フォールバック。
-- **人間の承認キュー (HITL):** 危険なコマンドや外部通信は、Web UI、WhatsApp、CLIで承認されるまで安全に待機。
+### Resumen en español
 
----
+Duffy es un trabajador de IA en segundo plano: ejecuta tareas con la CLI de IA que ya usas,
+cambia de modelo cuando uno se queda sin cuota y se detiene ante cualquier acción
+arriesgada hasta que tú la apruebes.
 
-## 🇨🇳 中文
-**Duffy** 是一款开源的 7x24 小时后台自主运行 AI 任务执行器。
-- **零 API 成本:** 自动在各类免费配额和本地模型间智能轮回调度。
-- **人机协同审批 (HITL):** 关键与高危任务必须经过网页仪表盘、WhatsApp 或命令行一键批准方可执行。
+## License
 
----
-
-## 🇩🇪 Deutsch
-**Duffy** ist ein autonomer 24/7-Hintergrund-Agent mit integrierter Genehmigungswarteschlange (Human-in-the-Loop) und automatischem Multi-Modell-Fallback für 0 EUR API-Kosten.
-
----
-
-## 🇪🇸 Español
-**Duffy** es un agente autónomo que opera 24/7 en segundo plano con cola de aprobación humana (HITL) y conmutación por error entre modelos gratuitos sin costo de API.
-
----
-
-## 🛠️ CLI Reference
-| Command | Description | Example |
-|---|---|---|
-| `python3 duffy.py daemon` | Starts background daemon & HTTP dashboard | `python3 duffy.py daemon` |
-| `python3 duffy.py add` | Adds a new task with risk classification | `python3 duffy.py add -p "Analyze PR" -r 1` |
-| `python3 duffy.py list` | Displays current tasks and their status | `python3 duffy.py list` |
-| `python3 duffy.py approve` | Approves a gated task by ID | `python3 duffy.py approve --id 4` |
-| `python3 duffy.py reject` | Rejects a gated task by ID | `python3 duffy.py reject --id 4` |
-
----
-
-## 📄 License
-MIT License. Developed by DAAK Systems. Contributions welcome!
+MIT — see [LICENSE](LICENSE). Changes are listed in [CHANGELOG.md](CHANGELOG.md).

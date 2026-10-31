@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""
+ai — ask Claude; when its usage limit is hit, fall back to Antigravity automatically.
+
+Order: claude -p  ->  local Antigravity CLI (agy)  ->  a Duffy server's chat.
+When a Claude limit message is seen, a flag is written and ai goes straight to the
+fallback until the reported reset time.
+
+  ai "question"      one-shot question with automatic fallback
+  ai                 chat mode (Antigravity chat while Claude is limited, else claude)
+  ai -a "question"   skip Claude, ask the fallback directly
+  ai --status        which engine will be used now
+  ai --reset         clear the limit flag
+
+Environment: AI_AGY (default: agy on PATH), AI_DUFFY_URLS (comma separated,
+default http://127.0.0.1:8899), AI_DUFFY_AGENT (default duffy).
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta
+
+STATE = os.path.expanduser("~/.cache/ai-fallback/claude_limit.json")
+AGY = os.environ.get("AI_AGY") or shutil.which("agy") or "agy"
+CLAUDE = shutil.which("claude") or "/opt/homebrew/bin/claude"
+DUFFY_URLS = [u.strip() for u in os.environ.get("AI_DUFFY_URLS", "http://127.0.0.1:8899").split(",") if u.strip()]
+DUFFY_AGENT = os.environ.get("AI_DUFFY_AGENT", "duffy")
+LIMIT_RE = re.compile(
+    r"usage limit|limit reached|hit your limit|rate.?limit|out of (extra )?usage|quota|resets? (at )?\d",
+    re.IGNORECASE,
+)
+DEFAULT_BLOCK = timedelta(hours=1)
+
+
+def note(msg: str) -> None:
+    sys.stderr.write(f"\033[2m[ai] {msg}\033[0m\n")
+
+
+# --- Limit flag ---------------------------------------------------------
+
+def parse_reset(text: str) -> datetime:
+    now = datetime.now()
+    m = re.search(r"\|(\d{10})\b", text)  # "Claude AI usage limit reached|1793400000"
+    if m:
+        return datetime.fromtimestamp(int(m.group(1)))
+    m = re.search(r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", text, re.IGNORECASE)
+    if m:
+        h, mi, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+        if ap == "pm" and h < 12:
+            h += 12
+        if ap == "am" and h == 12:
+            h = 0
+        t = now.replace(hour=h % 24, minute=mi, second=0, microsecond=0)
+        return t if t > now else t + timedelta(days=1)
+    return now + DEFAULT_BLOCK
+
+
+def limited_until() -> datetime | None:
+    try:
+        with open(STATE) as f:
+            until = datetime.fromisoformat(json.load(f)["until"])
+    except Exception:
+        return None
+    return until if until > datetime.now() else None
+
+
+def mark_limited(text: str) -> datetime:
+    until = parse_reset(text)
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    with open(STATE, "w") as f:
+        json.dump({"until": until.isoformat(), "seen": text.strip()[:300]}, f)
+    return until
+
+
+def clear_limit() -> None:
+    try:
+        os.remove(STATE)
+    except FileNotFoundError:
+        pass
+
+
+# --- Engines --------------------------------------------------------------
+
+def ask_claude(prompt: str) -> tuple[bool, str]:
+    """(ok, text). Writes the limit flag and returns ok=False when a limit is seen."""
+    try:
+        res = subprocess.run([CLAUDE, "-p", prompt], capture_output=True, text=True, timeout=900)
+    except Exception as e:
+        return False, f"could not run claude: {e}"
+    out = (res.stdout or "").strip()
+    err = (res.stderr or "").strip()
+    if res.returncode == 0 and out and not (len(out) < 300 and LIMIT_RE.search(out)):
+        return True, out
+    combined = f"{out}\n{err}".strip()
+    if LIMIT_RE.search(combined):
+        until = mark_limited(combined)
+        note(f"Claude limit reached (until {until:%H:%M}) -> Antigravity")
+    else:
+        note(f"Claude failed (exit {res.returncode}) -> Antigravity")
+    return False, combined
+
+
+def ask_local_agy(prompt: str, cid: str | None = None) -> tuple[bool, str, str | None]:
+    if not shutil.which(AGY) and not os.path.exists(AGY):
+        return False, "agy not found", None
+    cmd = [AGY, "-k"] + (["--cid", cid] if cid else []) + [prompt]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    except Exception as e:
+        return False, str(e), None
+    out = (res.stdout or "").strip()
+    m = re.search(r"Conversation ID:\s*([\w-]+)", res.stderr or "")
+    if res.returncode == 0 and out:
+        return True, out, (m.group(1) if m else cid)
+    return False, (res.stderr or out).strip(), None
+
+
+def _post(url: str, fields: dict) -> None:
+    data = urllib.parse.urlencode(fields).encode()
+    urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=10).read()
+
+
+def ask_duffy(prompt: str, wait_s: int = 600) -> tuple[bool, str]:
+    """Posts to a Duffy server's chat and waits for the agent's reply."""
+    for base in DUFFY_URLS:
+        try:
+            before = json.loads(urllib.request.urlopen(base + "/api/status", timeout=6).read())
+            last_id = max([c["id"] for c in before.get("chats", [])] or [0])
+            _post(base + "/chat", {"agent_id": DUFFY_AGENT, "message": prompt})
+        except Exception:
+            continue
+        note(f"Duffy is thinking ({base})...")
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            time.sleep(4)
+            try:
+                st = json.loads(urllib.request.urlopen(base + "/api/status", timeout=6).read())
+            except Exception:
+                continue
+            for c in st.get("chats", []):
+                if c["id"] > last_id and c["agent_id"] == DUFFY_AGENT and c["sender"] != "user":
+                    return True, c["message"].strip()
+        return False, "Duffy timed out"
+    return False, "no Duffy server reachable"
+
+
+def ask_antigravity(prompt: str, cid: str | None = None) -> tuple[str, str | None]:
+    ok, text, cid = ask_local_agy(prompt, cid)
+    if ok:
+        return text, cid
+    note("local Antigravity not available -> Duffy")
+    ok, text = ask_duffy(prompt)
+    if ok:
+        return text, None
+    raise SystemExit(f"[ai] no engine answered: {text}")
+
+
+# --- Command line ----------------------------------------------------------
+
+def one_shot(prompt: str, force_agy: bool) -> None:
+    if not force_agy:
+        until = limited_until()
+        if until:
+            note(f"Claude limited until {until:%H:%M} -> Antigravity")
+        else:
+            ok, text = ask_claude(prompt)
+            if ok:
+                print(text)
+                return
+    text, _ = ask_antigravity(prompt)
+    print(text)
+
+
+def repl() -> None:
+    until = limited_until()
+    if not until:
+        os.execv(CLAUDE, [CLAUDE])
+    note(f"Claude limited until {until:%H:%M} — Antigravity chat (Ctrl-D to quit)")
+    cid = None
+    while True:
+        try:
+            line = input("\033[1;35magy›\033[0m ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not line:
+            continue
+        text, cid = ask_antigravity(line, cid)
+        print(text + "\n")
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    if args[:1] in (["-h"], ["--help"]):
+        print(__doc__.strip())
+        return
+    if args[:1] == ["--reset"]:
+        clear_limit()
+        print("Claude limit flag cleared.")
+        return
+    if args[:1] == ["--status"]:
+        until = limited_until()
+        print(f"Antigravity (until {until:%Y-%m-%d %H:%M})" if until else "Claude")
+        return
+    force = args[:1] in (["-a"], ["--agy"])
+    if force:
+        args = args[1:]
+    if not args and not sys.stdin.isatty():
+        args = [sys.stdin.read()]
+    if not args:
+        if force:
+            mark_limited("")  # keep chat on Antigravity for an hour
+        return repl()
+    one_shot(" ".join(args), force)
+
+
+if __name__ == "__main__":
+    main()
