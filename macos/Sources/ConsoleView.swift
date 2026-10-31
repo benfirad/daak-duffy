@@ -1,0 +1,657 @@
+import SwiftUI
+
+// Ayrıntılı konsol penceresi: kenar çubuğu + bölümler
+struct ConsoleView: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: Binding(get: { monitor.section }, set: { if let s = $0 { monitor.section = s } })) {
+                Section {
+                    ForEach(ConsoleSection.allCases) { s in
+                        Label(s.title, systemImage: s.icon)
+                            .badge(badge(for: s))
+                            .tag(s)
+                    }
+                }
+                Section("Bağlantı") {
+                    connectionRow
+                }
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
+        } detail: {
+            ZStack {
+                DS.bg.ignoresSafeArea()
+                switch monitor.section {
+                case .overview: OverviewSection()
+                case .tasks: TasksSection()
+                case .approvals: ApprovalsSection()
+                case .office: OfficeSection()
+                case .services: ServicesSection()
+                case .commands: CommandsSection()
+                }
+            }
+            .navigationTitle(monitor.section.title)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await monitor.refresh()
+                            await monitor.refreshOffice()
+                        }
+                    } label: {
+                        Label("Yenile", systemImage: "arrow.clockwise")
+                    }
+                    .help("Şimdi yenile (⌘R)")
+                    .keyboardShortcut("r", modifiers: .command)
+                }
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let toast = monitor.toast {
+                Text(toast)
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(DS.bgRaised, in: Capsule())
+                    .overlay { Capsule().stroke(DS.stroke) }
+                    .padding(.bottom, 20)
+                    .transition(.opacity)
+            }
+        }
+        .frame(minWidth: 900, minHeight: 580)
+        .preferredColorScheme(.dark)
+    }
+
+    private func badge(for s: ConsoleSection) -> Int {
+        switch s {
+        case .approvals: return monitor.pendingApprovals.count
+        case .tasks: return monitor.activeTasks.count
+        case .office: return monitor.officeProblems.count
+        default: return 0
+        }
+    }
+
+    private var connectionRow: some View {
+        HStack(spacing: 6) {
+            StatusDot(color: monitor.online ? DS.ok : DS.bad, size: 6, pulse: monitor.online)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(monitor.online ? "\(monitor.hostLabel) · \(monitor.linkLabel)" : "\(monitor.hostLabel) çevrimdışı")
+                    .font(.system(size: 11.5, weight: .medium))
+                Text(monitor.lastSync.map { "güncel \(Fmt.clock($0))" } ?? "bağlanıyor…")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Shared pieces
+
+private struct SectionScroll<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) { content }
+                .padding(22)
+                .frame(maxWidth: 1100, alignment: .leading)
+                .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+private struct SectionTitle: View {
+    let title: String
+    var trailing: String? = nil
+
+    var body: some View {
+        HStack {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .tracking(0.8)
+                .foregroundStyle(DS.text3)
+            Spacer()
+            if let trailing {
+                Text(trailing).font(.system(size: 11)).foregroundStyle(DS.text3)
+            }
+        }
+        .padding(.top, 6)
+    }
+}
+
+private struct StatTile: View {
+    let title: String
+    let value: String
+    let detail: String
+    let icon: String
+    let tint: Color
+    var action: (() -> Void)? = nil
+    @State private var hover = false
+
+    var body: some View {
+        Button { action?() } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundStyle(tint)
+                    Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(DS.text2)
+                    Spacer()
+                }
+                Text(value)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(DS.text1)
+                Text(detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.text3)
+                    .lineLimit(1)
+            }
+            .card()
+            .background(hover && action != nil ? DS.surface : .clear, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .allowsHitTesting(action != nil)
+        .onHover { hover = $0 }
+    }
+}
+
+// MARK: - Overview
+
+private struct OverviewSection: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+
+    var body: some View {
+        let done = monitor.tasks.filter { $0.status == "done" }.count
+        let failed = monitor.tasks.filter { $0.status == "failed" }.count
+        SectionScroll {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                StatTile(title: "Bağlantı", value: monitor.online ? "Çevrimiçi" : "Kopuk",
+                         detail: monitor.online ? "\(monitor.hostLabel) · \(monitor.linkLabel)" : "Tüm adresler denendi",
+                         icon: "antenna.radiowaves.left.and.right", tint: monitor.online ? DS.ok : DS.bad)
+                StatTile(title: "Süren görevler", value: "\(monitor.activeTasks.count)",
+                         detail: "\(done) tamamlandı · \(failed) hata",
+                         icon: "bolt.fill", tint: DS.info) { monitor.openConsole(.tasks) }
+                StatTile(title: "Onay bekleyen", value: "\(monitor.pendingApprovals.count)",
+                         detail: monitor.pendingApprovals.isEmpty ? "Bekleyen işlem yok" : "Senin kararını bekliyor",
+                         icon: "hand.raised.fill", tint: monitor.pendingApprovals.isEmpty ? DS.ok : DS.warn) { monitor.section = .approvals }
+                StatTile(title: "Servis uyarısı", value: "\(monitor.officeProblems.count)",
+                         detail: monitor.officeOnline ? "\(monitor.officeAgents.count) servis izleniyor" : "Ofis paneline ulaşılamıyor",
+                         icon: "exclamationmark.triangle.fill",
+                         tint: monitor.officeProblems.isEmpty ? DS.ok : DS.warn) { monitor.section = .office }
+            }
+
+            SectionTitle(title: "Dikkat gerektirenler")
+            if monitor.pendingApprovals.isEmpty && monitor.officeProblems.isEmpty && monitor.online {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(DS.ok)
+                    Text("Her şey yolunda; onay bekleyen işlem ya da servis uyarısı yok.")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(DS.text2)
+                }
+                .card()
+            } else {
+                VStack(spacing: 8) {
+                    if !monitor.online {
+                        attentionRow(icon: "wifi.slash", tint: DS.bad, title: "\(monitor.hostLabel) sunucusuna ulaşılamıyor",
+                                     detail: "Ağ bağlantısını ya da Duffy servisini kontrol et") {}
+                    }
+                    ForEach(monitor.pendingApprovals) { t in
+                        attentionRow(icon: "hand.raised.fill", tint: DS.warn, title: t.approvalAction ?? t.title,
+                                     detail: "#\(t.id) · \(monitor.displayName(forCategory: t.category)) · onay bekliyor") {
+                            monitor.section = .approvals
+                        }
+                    }
+                    ForEach(monitor.officeProblems) { a in
+                        attentionRow(icon: "exclamationmark.triangle.fill", tint: DS.stateColor(a.state), title: a.name,
+                                     detail: a.facts["hata"]?.text ?? a.facts["hue"]?.text ?? a.facts["durum"]?.text ?? a.role) {
+                            monitor.section = .office
+                        }
+                    }
+                }
+            }
+
+            SectionTitle(title: "Son görevler", trailing: monitor.tasks.isEmpty ? nil : "\(monitor.tasks.count) görev")
+            if monitor.tasks.isEmpty {
+                EmptyState(icon: "tray", title: "Henüz görev yok", subtitle: "Görevler sekmesinden ya da ana ekrandaki + ile ekleyebilirsin.")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(monitor.tasks.prefix(6)) { t in
+                        Button { monitor.openConsole(.tasks) } label: {
+                            HStack(spacing: 10) {
+                                StatusBadge(status: t.status, compact: true)
+                                Text(t.title).font(.system(size: 12.5)).foregroundStyle(DS.text1).lineLimit(1)
+                                Spacer()
+                                Text(monitor.displayName(forCategory: t.category)).font(.system(size: 11)).foregroundStyle(DS.text3)
+                                Text(Fmt.relative(t.lastActivity)).font(.system(size: 11)).foregroundStyle(DS.text3)
+                                    .frame(width: 56, alignment: .trailing)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if t.id != monitor.tasks.prefix(6).last?.id { Divider().overlay(DS.stroke) }
+                    }
+                }
+                .card(padding: 0)
+            }
+        }
+    }
+
+    private func attentionRow(icon: String, tint: Color, title: String, detail: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).foregroundStyle(tint).frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(DS.text1).lineLimit(1)
+                    Text(detail).font(.system(size: 11.5)).foregroundStyle(DS.text2).lineLimit(2)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).foregroundStyle(DS.text3)
+            }
+            .card(padding: 12, accent: tint)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Tasks
+
+private struct TasksSection: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+
+    private let filters: [(String, String)] = [
+        ("all", "Tümü"), ("active", "Süren"), ("awaiting_approval", "Onay"),
+        ("done", "Tamamlanan"), ("failed", "Hata"), ("rejected", "Reddedilen"),
+    ]
+
+    var body: some View {
+        SectionScroll {
+            composer
+
+            HStack(spacing: 6) {
+                ForEach(filters, id: \.0) { key, label in
+                    let count = count(for: key)
+                    Button {
+                        monitor.taskStatusFilter = key
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(label)
+                            if count > 0 { Text("\(count)").foregroundStyle(monitor.taskStatusFilter == key ? .black.opacity(0.6) : DS.text3) }
+                        }
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(monitor.taskStatusFilter == key ? .black : DS.text2)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(monitor.taskStatusFilter == key ? DS.accent : DS.pill, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 10) {
+                Menu {
+                    Button("Tüm ajanlar") { monitor.taskAgentFilter = nil }
+                    Divider()
+                    ForEach(monitor.allCharacters) { a in Button(a.name) { monitor.taskAgentFilter = a.id.lowercased() } }
+                } label: {
+                    Label(monitor.taskAgentFilter.map { monitor.displayName(forCategory: $0) } ?? "Tüm ajanlar",
+                          systemImage: "line.3.horizontal.decrease.circle")
+                        .font(.system(size: 11.5))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                Spacer()
+                Text("\(monitor.filteredTasks.count) görev")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.text3)
+                TextField("Başlık, rapor ya da #numara ara", text: $monitor.taskSearch)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 220)
+            }
+
+            let list = monitor.filteredTasks
+            if list.isEmpty {
+                EmptyState(icon: "line.3.horizontal.decrease", title: "Bu filtreye uyan görev yok",
+                           subtitle: "Filtreyi değiştir ya da yukarıdan yeni görev ekle.")
+            } else {
+                ForEach(list) { TaskCard(task: $0) }
+            }
+        }
+    }
+
+    private func count(for key: String) -> Int {
+        switch key {
+        case "all": return 0
+        case "active": return monitor.activeTasks.count
+        default: return monitor.tasks.filter { $0.status == key }.count
+        }
+    }
+
+    private var composer: some View {
+        HStack(spacing: 10) {
+            Menu {
+                ForEach(monitor.allCharacters) { a in Button(a.name) { monitor.newTaskCat = a.id } }
+            } label: {
+                Text(monitor.character(for: monitor.newTaskCat)?.name ?? monitor.newTaskCat)
+                    .font(.system(size: 12.5, weight: .semibold))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Görevi yapacak ajan")
+
+            Divider().frame(height: 18)
+
+            TextField("Yeni arka plan görevi: ne yapılsın?", text: $monitor.newTaskTitle)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .onSubmit(submit)
+
+            Button("Kuyruğa ekle", action: submit)
+                .buttonStyle(.borderedProminent)
+                .tint(DS.accent)
+                .disabled(monitor.newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .card(padding: 12)
+    }
+
+    private func submit() {
+        Task {
+            if await monitor.addTask(title: monitor.newTaskTitle, category: monitor.newTaskCat) {
+                monitor.newTaskTitle = ""
+            }
+        }
+    }
+}
+
+private struct TaskCard: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+    let task: DuffyTask
+    @State private var expanded = false
+
+    var body: some View {
+        let summary = task.resultSummary ?? ""
+        let long = summary.count > 320
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                StatusBadge(status: task.status)
+                Text("#\(task.id)").font(.system(size: 11, weight: .semibold, design: .monospaced)).foregroundStyle(DS.text3)
+                if let a = monitor.character(for: task.category) {
+                    Chip(text: a.name, color: a.color)
+                } else {
+                    Chip(text: task.category)
+                }
+                Spacer()
+                if let m = task.modelUsed, !m.isEmpty {
+                    Text(m).font(.system(size: 10.5, design: .monospaced)).foregroundStyle(DS.text3).lineLimit(1)
+                }
+                Text(Fmt.relative(task.lastActivity))
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.text3)
+                    .help(task.updatedAt ?? task.createdAt ?? "")
+            }
+
+            Text(task.title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundStyle(DS.text1)
+                .lineLimit(expanded ? nil : 2)
+                .textSelection(.enabled)
+
+            if task.status == "awaiting_approval" {
+                ApprovalBox(task: task)
+            }
+
+            if !summary.isEmpty {
+                MarkdownText(text: expanded || !long ? summary : String(summary.prefix(320)) + "…", size: 12, color: DS.text2)
+                    .textSelection(.enabled)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
+
+            HStack(spacing: 14) {
+                if long {
+                    Button(expanded ? "Daralt" : "Tüm raporu göster") { withAnimation { expanded.toggle() } }
+                }
+                if !summary.isEmpty { Button("Raporu kopyala") { monitor.copy(summary) } }
+                Spacer()
+                if TaskState.canRetry(task.status) {
+                    Button {
+                        Task { await monitor.taskAction("retry", id: task.id, label: "Görev yeniden başlatıldı") }
+                    } label: {
+                        Label("Tekrar çalıştır", systemImage: "arrow.clockwise")
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(DS.accent)
+        }
+        .card(accent: TaskState.color(task.status))
+    }
+}
+
+// Onay kutusu: komutu göster, onaydan önce bir kez daha sor
+private struct ApprovalBox: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+    let task: DuffyTask
+    @State private var confirming = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(task.approvalAction ?? "Bu adım senin onayını bekliyor", systemImage: "hand.raised.fill")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(DS.warn)
+            if let cmd = task.approvalCmd, !cmd.isEmpty {
+                HStack(alignment: .top) {
+                    Text(cmd)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(DS.text1)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button { monitor.copy(cmd) } label: { Image(systemName: "doc.on.doc") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(DS.text2)
+                        .help("Komutu kopyala")
+                }
+                .padding(10)
+                .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            HStack {
+                Text("Onaylarsan bu komut \(monitor.hostLabel) üzerinde çalıştırılır.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.text3)
+                Spacer()
+                Button("Reddet") {
+                    Task { await monitor.taskAction("reject", id: task.id, label: "Reddedildi") }
+                }
+                .buttonStyle(.bordered)
+                Button("Onayla…") { confirming = true }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DS.ok)
+            }
+        }
+        .padding(12)
+        .background(DS.warn.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(DS.warn.opacity(0.3)) }
+        .confirmationDialog("#\(task.id) onaylansın mı?", isPresented: $confirming) {
+            Button("Onayla ve çalıştır") {
+                Task { await monitor.taskAction("approve", id: task.id, label: "Onaylandı, çalıştırılıyor") }
+            }
+            Button("Vazgeç", role: .cancel) {}
+        } message: {
+            Text(task.approvalCmd ?? task.approvalAction ?? task.title)
+        }
+    }
+}
+
+// MARK: - Approvals
+
+private struct ApprovalsSection: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+
+    var body: some View {
+        SectionScroll {
+            if monitor.pendingApprovals.isEmpty {
+                EmptyState(icon: "checkmark.shield", title: "Onay bekleyen işlem yok",
+                           subtitle: "Ajanlar e-posta gönderme, ödeme, silme gibi riskli bir adıma geldiğinde burada durur ve senin kararını bekler.")
+            } else {
+                Text("Her onay, gösterilen komutu \(monitor.hostLabel) üzerinde çalıştırır. Emin değilsen reddet; ajan başka yol arar.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DS.text2)
+                ForEach(monitor.pendingApprovals) { TaskCard(task: $0) }
+            }
+        }
+    }
+}
+
+// MARK: - Office
+
+private struct OfficeSection: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+
+    var body: some View {
+        SectionScroll {
+            HStack(spacing: 8) {
+                StatusDot(color: monitor.officeOnline ? DS.ok : DS.bad, size: 6, pulse: monitor.officeOnline)
+                Text(monitor.officeOnline ? "Ofis paneli bağlı · \(Fmt.ago(monitor.officeSync)) güncellendi" : "Ofis paneline ulaşılamıyor")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DS.text2)
+            }
+            if monitor.officeAgents.isEmpty {
+                EmptyState(icon: "building.2", title: "Ofis verisi yok",
+                           subtitle: "office.py çalışıyorsa birkaç saniye içinde görünür. Varsayılan port 8900.")
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12, alignment: .top)], alignment: .leading, spacing: 12) {
+                    ForEach(monitor.officeAgents.sorted { ($0.severity, $0.name) < ($1.severity, $1.name) }) { OfficeCard(agent: $0) }
+                }
+            }
+        }
+    }
+}
+
+private struct OfficeCard: View {
+    let agent: OfficeAgent
+
+    var body: some View {
+        let tint = DS.stateColor(agent.state)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(agent.name).font(.system(size: 13, weight: .bold)).foregroundStyle(DS.text1).lineLimit(1)
+                Spacer()
+                Text(agent.state == "ok" ? "çalışıyor" : (agent.state == "warn" ? "dikkat" : "kapalı"))
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(tint)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(tint.opacity(0.15), in: Capsule())
+            }
+            Text(agent.role).font(.system(size: 11)).foregroundStyle(DS.text3).lineLimit(1)
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
+                ForEach(agent.facts.keys.sorted(), id: \.self) { key in
+                    GridRow {
+                        Text(key).font(.system(size: 11)).foregroundStyle(DS.text3)
+                        Text(Fmt.humanize(agent.facts[key]?.text ?? "—"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(DS.text1)
+                            .lineLimit(3)
+                            .textSelection(.enabled)
+                            .help(agent.facts[key]?.text ?? "")
+                    }
+                }
+            }
+        }
+        .card(padding: 12, accent: tint)
+    }
+}
+
+// MARK: - Services
+
+private struct ServicesSection: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+    @State private var query = ""
+    @State private var onlyProblems = false
+
+    // Çalışmayan ama 0 ile çıkmış servisler zamanlanmış işlerdir; arıza değil
+    private func rank(_ s: OfficeService) -> Int { s.running ? 1 : (s.lastExit == "0" || s.lastExit == "—" ? 2 : 0) }
+
+    var body: some View {
+        let all = monitor.officeServices
+        let running = all.filter(\.running).count
+        let failing = all.filter { rank($0) == 0 }.count
+        let list = all
+            .filter { query.isEmpty || $0.label.localizedCaseInsensitiveContains(query) }
+            .filter { !onlyProblems || rank($0) == 0 }
+            .sorted { (rank($0), $0.label) < (rank($1), $1.label) }
+        SectionScroll {
+            HStack(spacing: 14) {
+                Label("\(running) çalışıyor", systemImage: "circle.fill").foregroundStyle(DS.ok)
+                Label("\(failing) hatalı", systemImage: "circle.fill").foregroundStyle(failing > 0 ? DS.warn : DS.text3)
+                Label("\(all.count - running - failing) bekliyor", systemImage: "circle.fill").foregroundStyle(DS.text3)
+                Spacer()
+                Toggle("Sadece hatalılar", isOn: $onlyProblems).toggleStyle(.switch).controlSize(.small)
+                TextField("Servis ara", text: $query).textFieldStyle(.roundedBorder).frame(width: 180)
+            }
+            if list.isEmpty {
+                EmptyState(icon: "server.rack",
+                           title: all.isEmpty ? "Servis listesi yok" : (onlyProblems && query.isEmpty ? "Hatalı servis yok" : "Eşleşen servis yok"))
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(list) { svc in
+                        let r = rank(svc)
+                        HStack(spacing: 10) {
+                            Circle().fill(r == 1 ? DS.ok : (r == 0 ? DS.warn : DS.muted)).frame(width: 7, height: 7)
+                            Text(svc.label).font(.system(size: 12, design: .monospaced)).foregroundStyle(DS.text1).lineLimit(1)
+                            Spacer()
+                            Text(r == 1 ? "çalışıyor · pid \(svc.pid!)" : (r == 0 ? "hata · çıkış kodu \(svc.lastExit)" : "bekliyor"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(r == 0 ? DS.warn : DS.text3)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        if svc.id != list.last?.id { Divider().overlay(DS.stroke) }
+                    }
+                }
+                .card(padding: 0)
+            }
+        }
+    }
+}
+
+// MARK: - Commands
+
+private struct CommandsSection: View {
+    @EnvironmentObject var monitor: DuffyMonitor
+
+    var body: some View {
+        SectionScroll {
+            Text("Terminalden ya da sohbet köprüsünden aynı işleri yapmak için hazır komutlar.")
+                .font(.system(size: 12))
+                .foregroundStyle(DS.text2)
+            ForEach(monitor.config.commands ?? AppConfig.defaultCommands) { item in
+                HStack(alignment: .center, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(DS.text1)
+                        Text(item.command)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(DS.accent)
+                            .textSelection(.enabled)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 7))
+                        if let d = item.desc {
+                            Text(d).font(.system(size: 11.5)).foregroundStyle(DS.text3)
+                        }
+                    }
+                    Button { monitor.copy(item.command) } label: { Label("Kopyala", systemImage: "doc.on.doc") }
+                        .buttonStyle(.bordered)
+                }
+                .card()
+            }
+        }
+    }
+}

@@ -3,7 +3,7 @@
 **A background AI worker that does the routine work on its own, and waits for you before doing anything risky.**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.0-f59e0b" alt="Version 0.2.0">
+  <img src="https://img.shields.io/badge/version-0.3.0-f59e0b" alt="Version 0.3.0">
   <img src="https://img.shields.io/badge/python-3.9%2B-3776ab" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/dependencies-none-3fb27f" alt="No dependencies">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license">
@@ -33,6 +33,7 @@ or a small home server that never sleeps.
 | **Notifications** | Any webhook that accepts `{"chatId", "message"}` — WhatsApp or Telegram bridges fit. |
 | **Office panel** *(optional)* | `office.py`: approvals, health checks, launchd services and log tails on one screen. |
 | **`ai` command** *(optional)* | Asks Claude; when Claude's usage limit is hit it switches to Antigravity, then to Duffy, until the limit resets. |
+| **macOS app** *(optional)* | Menu bar app: chat with agents, queue tasks, approve commands, see the office panel. See [`macos/`](macos/README.md). |
 
 ```mermaid
 flowchart LR
