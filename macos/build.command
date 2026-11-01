@@ -13,7 +13,7 @@ xcrun --sdk macosx swiftc -parse-as-library -O \
   -target "$(uname -m)-apple-macos13.0" \
   -o "$APP/Contents/MacOS/daakDuffy" \
   "$ROOT"/Sources/*.swift \
-  -framework SwiftUI -framework AppKit
+  -framework SwiftUI -framework AppKit -framework WebKit
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
 if [ -f "$ROOT/AppIcon.icns" ]; then
   cp "$ROOT/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"

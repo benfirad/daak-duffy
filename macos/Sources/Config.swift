@@ -35,13 +35,24 @@ func L(_ tr: String, _ en: String) -> String { Lang.english ? en : tr }
 // Türkçede sayıdan sonra tekil kalır; İngilizcede 1 dışında çoğul eki gerekir
 func plural(_ n: Int, _ word: String) -> String { n == 1 ? "1 \(word)" : "\(n) \(word)s" }
 
+// Konsolda yalnızca açık/kapalı durumu gösterilen makine; adresleri sırayla TCP ile yoklanır
+struct DeviceConfig: Codable, Identifiable {
+    let name: String
+    let hosts: [String]
+    var port: Int?
+    var id: String { name }
+}
+
 struct AppConfig: Codable {
     var language: String?
     var hosts: [String]?
     var duffyPort: Int?
     var officePort: Int?
+    // İsteğe bağlı gider paneli (Duffy Kasa); ayarlanırsa konsolda "Giderler" bölümü görünür
+    var kasaPort: Int?
     var hostLabel: String?
     var linkLabels: [String: String]?
+    var devices: [DeviceConfig]?
     var chief: PersonaConfig?
     var agents: [PersonaConfig]?
     var commands: [CommandConfig]?

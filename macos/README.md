@@ -45,9 +45,11 @@ at another file).
 | Key | Meaning |
 |---|---|
 | `language` | `"en"` or `"tr"`. Default: Turkish if that is the system language, otherwise English. |
-| `hosts` | Addresses tried in order; the app moves to the next one when a request fails (for example a cable link first, then a VPN). |
+| `hosts` | Addresses tried in order on every refresh; the app stays on the last one that answered and checks the first one again once a minute (for example a cable link first, then a VPN). |
 | `duffyPort`, `officePort` | Ports of `duffy.py` (8899) and `office.py` (8900). |
+| `kasaPort` | Optional expense panel; when set, an Expenses page shows that web page inside the console. |
 | `hostLabel`, `linkLabels` | Names shown in the status line, such as "Home server · VPN". |
+| `devices` | Optional machines shown as up/down chips on the Overview page. Each has a `name`, `hosts` tried in order and a TCP `port` to test (default 22). |
 | `chief`, `agents` | Characters. `id` must match the persona and task category on the server. `color` is a hex colour, `shape` is 0–2, `suggestions` are the first-question buttons. |
 | `agents[].office` | Office panel entries that drive the agent's status dot: an entry id such as `"health:Home Assistant"` (one of `office.py`'s health checks), or `"name:email"` to match by name. |
 | `commands` | Entries on the Commands page. |

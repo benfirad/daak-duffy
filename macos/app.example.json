@@ -4,7 +4,11 @@
   "duffyPort": 8899,
   "officePort": 8900,
   "hostLabel": "Home server",
-  "linkLabels": { "127.0.0.1": "local", "100.64.0.10": "VPN" },
+  "linkLabels": { "127.0.0.1": "local", "100.64.0.10": "VPN", "100.64.0.20": "VPN" },
+  "devices": [
+    { "name": "Home server", "hosts": ["127.0.0.1", "100.64.0.10"], "port": 8899 },
+    { "name": "Desktop PC", "hosts": ["100.64.0.20"], "port": 22 }
+  ],
   "chief": {
     "id": "duffy",
     "name": "Duffy",

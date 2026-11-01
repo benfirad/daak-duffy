@@ -8,7 +8,7 @@ struct ConsoleView: View {
         NavigationSplitView {
             List(selection: Binding(get: { monitor.section }, set: { if let s = $0 { monitor.section = s } })) {
                 Section {
-                    ForEach(ConsoleSection.allCases) { s in
+                    ForEach(monitor.visibleSections) { s in
                         Label(s.title, systemImage: s.icon)
                             .badge(badge(for: s))
                             .tag(s)
@@ -30,6 +30,8 @@ struct ConsoleView: View {
                 case .office: OfficeSection()
                 case .services: ServicesSection()
                 case .commands: CommandsSection()
+                case .expenses:
+                    if let url = monitor.kasaURL { WebPanel(url: url) } else { EmptyView() }
                 }
             }
             .navigationTitle(monitor.section.title)
@@ -180,6 +182,14 @@ private struct OverviewSection: View {
                          tint: monitor.officeProblems.isEmpty ? DS.ok : DS.warn) { monitor.section = .office }
             }
 
+            if let devices = monitor.config.devices, !devices.isEmpty {
+                SectionTitle(title: L("Cihazlar", "Devices"))
+                HStack(spacing: 8) {
+                    ForEach(devices) { d in deviceChip(d.name, link: monitor.deviceLinks[d.name]) }
+                    Spacer()
+                }
+            }
+
             SectionTitle(title: L("Dikkat gerektirenler", "Needs attention"))
             if monitor.pendingApprovals.isEmpty && monitor.officeProblems.isEmpty && monitor.online {
                 HStack(spacing: 10) {
@@ -236,6 +246,20 @@ private struct OverviewSection: View {
                 .card(padding: 0)
             }
         }
+    }
+
+    private func deviceChip(_ name: String, link: String?) -> some View {
+        let up = link.map { !$0.isEmpty } ?? false
+        return HStack(spacing: 6) {
+            StatusDot(color: link == nil ? DS.text3 : (up ? DS.ok : DS.bad), size: 6, pulse: up)
+            Text(name).font(.system(size: 12, weight: .medium)).foregroundStyle(DS.text1)
+            Text(link == nil ? L("bakılıyor…", "checking…") : (up ? link! : L("ulaşılamıyor", "unreachable")))
+                .font(.system(size: 11))
+                .foregroundStyle(DS.text3)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(DS.pill, in: Capsule())
     }
 
     private func attentionRow(icon: String, tint: Color, title: String, detail: String, action: @escaping () -> Void) -> some View {

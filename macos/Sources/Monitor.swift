@@ -1,7 +1,8 @@
 import SwiftUI
+import Network
 
 enum ConsoleSection: String, CaseIterable, Identifiable {
-    case overview, tasks, approvals, office, services, commands
+    case overview, tasks, approvals, expenses, office, services, commands
     var id: String { rawValue }
 
     var title: String {
@@ -12,6 +13,7 @@ enum ConsoleSection: String, CaseIterable, Identifiable {
         case .office: return L("Ajan Ofisi", "Agent Office")
         case .services: return L("Servisler", "Services")
         case .commands: return L("Komutlar", "Commands")
+        case .expenses: return L("Giderler", "Expenses")
         }
     }
 
@@ -23,8 +25,14 @@ enum ConsoleSection: String, CaseIterable, Identifiable {
         case .office: return "building.2"
         case .services: return "server.rack"
         case .commands: return "terminal"
+        case .expenses: return "eurosign.circle"
         }
     }
+}
+
+// Bağlantı yoklamasının tek sonucu; yalnızca yoklamanın seri kuyruğunda değişir
+private final class ProbeState: @unchecked Sendable {
+    var finished = false
 }
 
 @MainActor
@@ -34,6 +42,8 @@ final class DuffyMonitor: ObservableObject {
     @Published var lastSync: Date?
     @Published var officeOnline = false
     @Published var officeSync: Date?
+    // Cihaz adı → ulaşılan yolun etiketi; "" ulaşılamıyor, kayıt yoksa henüz bakılmadı
+    @Published var deviceLinks: [String: String] = [:]
 
     // Veri
     @Published var tasks: [DuffyTask] = []
@@ -62,6 +72,8 @@ final class DuffyMonitor: ObservableObject {
     private let configuredAgents: [AgentCharacter]?
     private let hosts: [String]
     private var hostIndex = 0
+    private var refreshing = false
+    private var lastPreferredTry = Date.distantPast
     private var timer: Timer?
     private var officeTimer: Timer?
     private var waitingSince: Date?
@@ -88,9 +100,12 @@ final class DuffyMonitor: ObservableObject {
             Task { @MainActor in await self?.refresh() }
         }
         // Ofis özeti launchctl/SQLite okur; 15 sn yeterli
-        Task { await refreshOffice() }
+        Task { await refreshOffice(); await refreshDevices() }
         officeTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.refreshOffice() }
+            Task { @MainActor in
+                await self?.refreshOffice()
+                await self?.refreshDevices()
+            }
         }
     }
 
@@ -99,11 +114,26 @@ final class DuffyMonitor: ObservableObject {
     private var activeHost: String { hosts[hostIndex % hosts.count] }
     private var baseURL: String { "http://\(activeHost):\(config.duffyPort ?? 8899)" }
     private var officeURL: String { "http://\(activeHost):\(config.officePort ?? 8900)" }
+    var kasaURL: URL? { config.kasaPort.flatMap { URL(string: "http://\(activeHost):\($0)/") } }
+
+    var visibleSections: [ConsoleSection] {
+        ConsoleSection.allCases.filter { $0 != .expenses || config.kasaPort != nil }
+    }
     var hostLabel: String { config.hostLabel ?? "Duffy" }
     var linkLabel: String { config.linkLabels?[activeHost] ?? activeHost }
 
-    // Evde kablo, dışarıda VPN gibi birden çok yol varsa çalışmayanda takılı kalma
-    private func switchHost() { hostIndex = (hostIndex + 1) % hosts.count }
+    // Evde kablo, dışarıda VPN gibi birden çok yol varsa çalışmayanda takılı kalma:
+    // önce son çalışan adres, sonra diğerleri; listedeki ilk adres tercih edildiği için
+    // yedekteyken dakikada bir ona da yeniden bakılır
+    private func hostOrder() -> [Int] {
+        var order = (0..<hosts.count).map { (hostIndex + $0) % hosts.count }
+        if hostIndex != 0, Date().timeIntervalSince(lastPreferredTry) > 60 {
+            lastPreferredTry = Date()
+            order.removeAll { $0 == 0 }
+            order.insert(0, at: 0)
+        }
+        return order
+    }
 
     // MARK: Characters
 
@@ -198,14 +228,24 @@ final class DuffyMonitor: ObservableObject {
 
     // MARK: Networking
 
-    func refresh() async {
-        guard let url = URL(string: "\(baseURL)/api/status") else { return }
+    private func fetchStatus(host: String) async -> DuffyAPIResponse? {
+        guard let url = URL(string: "http://\(host):\(config.duffyPort ?? 8899)/api/status") else { return nil }
         var req = URLRequest(url: url)
         req.timeoutInterval = 4
-        do {
-            let (data, resp) = try await URLSession.shared.data(for: req)
-            if let http = resp as? HTTPURLResponse, http.statusCode == 200 {
-                let decoded = try JSONDecoder().decode(DuffyAPIResponse.self, from: data)
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return try? JSONDecoder().decode(DuffyAPIResponse.self, from: data)
+    }
+
+    func refresh() async {
+        // Zamanlayıcı 4 sn'de bir tetikler; önceki istek bitmeden yenisi başlarsa geç düşen
+        // eski hata çalışan adresten geri döndürüyordu (kablo yokken sürekli "çevrimdışı")
+        guard !refreshing else { return }
+        refreshing = true
+        defer { refreshing = false }
+        for i in hostOrder() {
+            if let decoded = await fetchStatus(host: hosts[i]) {
+                hostIndex = i
                 if decoded.tasks != tasks { tasks = decoded.tasks }
                 let newChats = decoded.chats ?? []
                 if newChats != chats { chats = newChats }
@@ -220,9 +260,46 @@ final class DuffyMonitor: ObservableObject {
                 lastSync = Date()
                 return
             }
-        } catch {}
+        }
         online = false
-        switchHost()
+    }
+
+    func refreshDevices() async {
+        for d in config.devices ?? [] {
+            var link = ""
+            for h in d.hosts {
+                if await Self.reachable(h, port: d.port ?? 22) {
+                    link = config.linkLabels?[h] ?? h
+                    break
+                }
+            }
+            if deviceLinks[d.name] != link { deviceLinks[d.name] = link }
+        }
+    }
+
+    // ICMP için yetki gerekir; bunun yerine bilinen bir porta TCP bağlantısı kurulabiliyor mu bakılır
+    nonisolated static func reachable(_ host: String, port: Int, timeout: Double = 3) async -> Bool {
+        guard let p = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else { return false }
+        return await withCheckedContinuation { cont in
+            let queue = DispatchQueue(label: "duffy.probe")
+            let conn = NWConnection(host: NWEndpoint.Host(host), port: p, using: .tcp)
+            let state = ProbeState()
+            let finish: @Sendable (Bool) -> Void = { ok in
+                guard !state.finished else { return }
+                state.finished = true
+                conn.cancel()
+                cont.resume(returning: ok)
+            }
+            conn.stateUpdateHandler = { state in
+                switch state {
+                case .ready: finish(true)
+                case .failed, .waiting: finish(false)
+                default: break
+                }
+            }
+            conn.start(queue: queue)
+            queue.asyncAfter(deadline: .now() + timeout) { finish(false) }
+        }
     }
 
     func refreshOffice() async {

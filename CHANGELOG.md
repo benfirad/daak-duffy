@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2 — 2026-11-01
+
+- Fix: the macOS app showed the server as offline whenever it had to use a VPN address. `NSAllowsLocalNetworking` made macOS ignore `NSAllowsArbitraryLoads`, so plain HTTP to Tailscale-style `100.x` addresses was blocked; only the local-network setting is gone now.
+- Fix: overlapping refreshes no longer flip the app back to an address that just failed. Every refresh tries all `hosts` in turn, stays on the one that answered and rechecks the first one once a minute.
+- New: optional `devices` in `~/.duffy/app.json` show other machines as up/down chips on the Overview page (TCP check on a port you choose).
+- New: optional `kasaPort` shows an expense web panel as an Expenses page inside the console.
+
 ## 0.3.1 — 2026-10-31
 
 - macOS app speaks English, or Turkish when that is the system language (`"language"` in `~/.duffy/app.json` overrides).
