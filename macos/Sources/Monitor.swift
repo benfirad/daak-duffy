@@ -49,6 +49,7 @@ final class DuffyMonitor: ObservableObject {
     @Published var tasks: [DuffyTask] = []
     @Published var chats: [DuffyChatMsg] = []
     @Published var serverAgents: [String: String] = [:]
+    @Published var dynamicAgents: [AgentCharacter]?
     @Published var officeAgents: [OfficeAgent] = []
     @Published var officeServices: [OfficeService] = []
 
@@ -73,6 +74,7 @@ final class DuffyMonitor: ObservableObject {
     private let hosts: [String]
     private var hostIndex = 0
     private var refreshing = false
+    private var consecutiveFailures = 0
     private var lastPreferredTry = Date.distantPast
     private var timer: Timer?
     private var officeTimer: Timer?
@@ -138,6 +140,7 @@ final class DuffyMonitor: ObservableObject {
     // MARK: Characters
 
     var agents: [AgentCharacter] {
+        if let dynamicAgents, !dynamicAgents.isEmpty { return dynamicAgents }
         if let configuredAgents { return configuredAgents }
         return serverAgents.keys.sorted().filter { $0 != chief.id }.enumerated().map { i, key in
             AgentCharacter(PersonaConfig(id: key, name: serverAgents[key] ?? key), index: i)
@@ -231,7 +234,7 @@ final class DuffyMonitor: ObservableObject {
     private func fetchStatus(host: String) async -> DuffyAPIResponse? {
         guard let url = URL(string: "http://\(host):\(config.duffyPort ?? 8899)/api/status") else { return nil }
         var req = URLRequest(url: url)
-        req.timeoutInterval = 4
+        req.timeoutInterval = 8
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
         return try? JSONDecoder().decode(DuffyAPIResponse.self, from: data)
@@ -246,9 +249,14 @@ final class DuffyMonitor: ObservableObject {
         for i in hostOrder() {
             if let decoded = await fetchStatus(host: hosts[i]) {
                 hostIndex = i
+                consecutiveFailures = 0
                 if decoded.tasks != tasks { tasks = decoded.tasks }
                 let newChats = decoded.chats ?? []
                 if newChats != chats { chats = newChats }
+                if let remoteList = decoded.remoteAgents, !remoteList.isEmpty {
+                    let loaded = remoteList.enumerated().map { AgentCharacter(remote: $1, index: $0) }
+                    if loaded != dynamicAgents { dynamicAgents = loaded }
+                }
                 if let a = decoded.agents, a != serverAgents { serverAgents = a }
                 if let w = waitingFor,
                    let last = chats.last(where: { $0.agentId == w }), !last.isUser,
@@ -261,7 +269,10 @@ final class DuffyMonitor: ObservableObject {
                 return
             }
         }
-        online = false
+        consecutiveFailures += 1
+        if consecutiveFailures >= 3 {
+            online = false
+        }
     }
 
     func refreshDevices() async {

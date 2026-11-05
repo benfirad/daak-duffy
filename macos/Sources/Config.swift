@@ -119,6 +119,17 @@ struct AgentCharacter: Identifiable, Equatable {
         officeRules = p.office ?? []
     }
 
+    init(remote: RemoteAgentItem, index: Int) {
+        id = remote.id
+        name = remote.name
+        roleTag = remote.roleTag ?? L("Asistan", "Assistant")
+        color = remote.colorHex.flatMap(Color.init(hex:)) ?? Self.palette[index % Self.palette.count]
+        shapeType = remote.shapeType ?? (index % 3)
+        greeting = remote.defaultGreeting ?? L("Merhaba, \(remote.name) burada.", "Hi, \(remote.name) here.")
+        suggestions = Self.defaultSuggestions
+        officeRules = [remote.id]
+    }
+
     func matches(_ office: OfficeAgent) -> Bool {
         officeRules.contains { rule in
             if rule.hasPrefix("name:") {

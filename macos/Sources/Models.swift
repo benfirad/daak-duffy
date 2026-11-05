@@ -66,12 +66,50 @@ struct DuffyChatMsg: Decodable, Identifiable, Equatable {
     var isUser: Bool { sender == "user" }
 }
 
+struct RemoteAgentItem: Decodable, Equatable {
+    let id: String
+    let name: String
+    let roleTag: String?
+    let colorHex: String?
+    let shapeType: Int?
+    let defaultGreeting: String?
+    let defaultTime: String?
+}
+
 struct DuffyAPIResponse: Decodable {
     let status: String
     let tasks: [DuffyTask]
     let chats: [DuffyChatMsg]?
-    let agents: [String: String]?
+    let remoteAgents: [RemoteAgentItem]?
+    let rawAgentDict: [String: String]?
     let version: String?
+
+    var agents: [String: String]? { rawAgentDict }
+
+    enum CodingKeys: String, CodingKey {
+        case status, tasks, chats, agents, version
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        status = (try? c.decode(String.self, forKey: .status)) ?? "ok"
+        tasks = (try? c.decode([DuffyTask].self, forKey: .tasks)) ?? []
+        chats = try? c.decodeIfPresent([DuffyChatMsg].self, forKey: .chats)
+        version = try? c.decodeIfPresent(String.self, forKey: .version)
+
+        if let list = try? c.decodeIfPresent([RemoteAgentItem].self, forKey: .agents) {
+            remoteAgents = list
+            var dict: [String: String] = [:]
+            for item in list { dict[item.id] = item.name }
+            rawAgentDict = dict
+        } else if let dict = try? c.decodeIfPresent([String: String].self, forKey: .agents) {
+            rawAgentDict = dict
+            remoteAgents = nil
+        } else {
+            remoteAgents = nil
+            rawAgentDict = nil
+        }
+    }
 }
 
 // Ofis paneli değerleri string, sayı ya da bool olabilir
