@@ -238,7 +238,7 @@ struct AgentRow: View {
 
     var body: some View {
         let preview = monitor.preview(for: agent)
-        let state = monitor.liveState(for: agent)
+        let state = monitor.liveState(for: agent) ?? (monitor.online ? "ok" : "down")
         let busy = monitor.tasks(for: agent).contains { $0.status == "running" }
         Button {
             monitor.activeAgent = agent
@@ -247,14 +247,12 @@ struct AgentRow: View {
                 CuteBlobAvatar(color: agent.color, shapeType: agent.shapeType, size: 42)
                     .frame(width: 48, height: 48)
                     .overlay(alignment: .bottomTrailing) {
-                        if let state {
-                            Circle()
-                                .fill(DS.stateColor(state))
-                                .frame(width: 11, height: 11)
-                                .overlay { Circle().stroke(DS.bg, lineWidth: 2.5) }
-                                .offset(x: 1, y: 1)
-                                .help(state == "ok" ? L("Bağlı servisler çalışıyor", "Linked services are up") : L("Bağlı serviste sorun var", "A linked service has a problem"))
-                        }
+                        Circle()
+                            .fill(DS.stateColor(state))
+                            .frame(width: 11, height: 11)
+                            .overlay { Circle().stroke(DS.bg, lineWidth: 2.5) }
+                            .offset(x: 1, y: 1)
+                            .help(state == "ok" ? L("Bağlı servisler çalışıyor", "Linked services are up") : (state == "warn" ? L("Bağlı serviste uyarı var", "A linked service has a warning") : L("Bağlı serviste sorun var", "A linked service has a problem")))
                     }
 
                 VStack(alignment: .leading, spacing: 4) {

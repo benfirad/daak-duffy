@@ -218,8 +218,17 @@ struct ChatView: View {
     }
 
     private func bubble(_ m: DuffyChatMsg) -> some View {
-        HStack(alignment: .bottom) {
+        HStack(alignment: .bottom, spacing: 7) {
             if m.isUser { Spacer(minLength: 48) }
+            if !m.isUser {
+                let st = monitor.liveState(for: agent) ?? (monitor.online ? "ok" : "down")
+                Circle()
+                    .fill(DS.stateColor(st))
+                    .frame(width: 8, height: 8)
+                    .overlay { Circle().stroke(DS.bg, lineWidth: 1.5) }
+                    .padding(.bottom, 6)
+                    .help(st == "ok" ? L("Ajan aktif ve çalışıyor", "Agent active and operational") : (st == "warn" ? L("Ajan uyarı durumunda", "Agent warning") : L("Ajan çevrimdışı", "Agent offline")))
+            }
             VStack(alignment: m.isUser ? .trailing : .leading, spacing: 3) {
                 MarkdownText(text: m.message, size: 13, color: m.isUser ? .white : DS.text1)
                     .textSelection(.enabled)

@@ -131,11 +131,41 @@ struct AgentCharacter: Identifiable, Equatable {
     }
 
     func matches(_ office: OfficeAgent) -> Bool {
-        officeRules.contains { rule in
+        let offId = office.id.lowercased()
+        let offName = office.name.lowercased()
+        let myId = id.lowercased()
+        let myName = name.lowercased()
+
+        if offId == myId || offId.contains(myId) || myId.contains(offId) { return true }
+
+        switch myId {
+        case "hasan":
+            if offId.contains("hook") || offName.contains("hasan") { return true }
+        case "omer":
+            if offId.contains("omer") || offName.contains("ömer") || offName.contains("omer") { return true }
+        case "mel":
+            if offId.contains("melissa") || offId.contains("mel") || offName.contains("melissa") || offName.contains("kanada") { return true }
+        case "vatsapci":
+            if offId.contains("vatsap") || offId.contains("whatsapp") || offName.contains("vatsap") { return true }
+        case "lahana":
+            if offId.contains("lahana") || offId.contains("pr") || offId.contains("github") || offName.contains("lahana") { return true }
+        case "redmono":
+            if offId.contains("outreach") || offId.contains("redmono") || offName.contains("redmono") { return true }
+        case "ev":
+            if offId.contains("node") || offId.contains("guardian") || offId.contains("health") || offId.contains("b-guardian") || offId.contains("hue") { return true }
+        case "duffy":
+            if offId.contains("duffy") || offId.contains("antigravity") || offId.contains("hermes") { return true }
+        default:
+            break
+        }
+
+        if offName.contains(myName) || myName.contains(offName) { return true }
+
+        return officeRules.contains { rule in
             if rule.hasPrefix("name:") {
-                return office.name.lowercased().contains(rule.dropFirst(5).lowercased())
+                return offName.contains(rule.dropFirst(5).lowercased())
             }
-            return office.id == rule
+            return offId == rule.lowercased()
         }
     }
 }
