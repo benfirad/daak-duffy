@@ -84,21 +84,16 @@ struct StatusDot: View {
     let color: Color
     var size: CGFloat = 7
     var pulse = false
-    @State private var on = false
 
     var body: some View {
         ZStack {
             if pulse {
-                Circle().fill(color.opacity(0.35))
-                    .frame(width: size * 2.2, height: size * 2.2)
-                    .scaleEffect(on ? 1 : 0.4)
-                    .opacity(on ? 0 : 1)
-                    .animation(.easeOut(duration: 1.6).repeatForever(autoreverses: false), value: on)
+                Circle().fill(color.opacity(0.3))
+                    .frame(width: size * 1.8, height: size * 1.8)
             }
             Circle().fill(color).frame(width: size, height: size)
         }
-        .frame(width: size * 2.2, height: size * 2.2)
-        .onAppear { on = true }
+        .frame(width: size * 1.8, height: size * 1.8)
     }
 }
 
